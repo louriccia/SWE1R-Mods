@@ -16,22 +16,22 @@ https://ko-fi.com/lightningpirate
 ### Bumpy's Broken Textures (Vol. 1)
 A collection of weird texture packs that mess with the colors of the existing textures including inverted, greyscale, randomized, and more. 
 
-**Dark Mode** - all textures completely blacked out
-**Gray Area** - all textures converted to grayscale
-**Inverted Mode** - all texture colors inverted
-**Light Mode** - all textures completely whitewashed
-**Magic Eye** - texture pixels are scrambled
-**PaintBall Arena** - colors are randomized
+**Dark Mode** - all textures completely blacked out  
+**Gray Area** - all textures converted to grayscale  
+**Inverted Mode** - all texture colors inverted  
+**Light Mode** - all textures completely whitewashed  
+**Magic Eye** - texture pixels are scrambled  
+**PaintBall Arena** - colors are randomized  
 
 ### Bumpy's Broken Textures (Vol. 1)
 Even more broken texture packs! Grids, checkerboards, old-school graphics, simplified, and more!
 
-**Dark Mode** - all textures completely blacked out
-**Gray Area** - all textures converted to grayscale
-**Inverted Mode** - all texture colors inverted
-**Light Mode** - all textures completely whitewashed
-**Magic Eye** - texture pixels are scrambled
-**PaintBall Arena** - colors are randomized
+**Dark Mode** - all textures completely blacked out  
+**Gray Area** - all textures converted to grayscale  
+**Inverted Mode** - all texture colors inverted  
+**Light Mode** - all textures completely whitewashed  
+**Magic Eye** - texture pixels are scrambled  
+**PaintBall Arena** - colors are randomized  
 
 
 ## Track Mods
