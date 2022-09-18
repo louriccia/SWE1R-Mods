@@ -7,7 +7,7 @@ Ronto-Sized - Tracks are 1.9x scale
 Jawa-Sized - Tracks are .4x scale
 Squash & Stretch - Tracks squashed on x, stretched on y
 Hallways & Hairpins - all tracks stretched on x, squashed on y
-Rise Over Run - Tracks are on a 0.5x slope
+Rise Over Run - Tracks are on a 0.33x slope
 Low Clearance - Tracks squished on z axis
 Head Room - Tracks exaggerated on z axis
 Bumpy Ride - Track vertices are randomly offset
