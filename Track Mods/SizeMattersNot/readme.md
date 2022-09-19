@@ -4,6 +4,8 @@ To install, copy the `out_modelblock.bin` and `out_splineblock.bin` files into t
 
 `Star Wars Episode I Racer / data / lev01 / `
 
+[Download All](https://github.com/louriccia/SWE1R-Mods/raw/main/Track%20Mods/SizeMattersNot/SizeMattersNot.zip)
+
 **Ronto-Sized** - Tracks are 1.9x scale (tilting should help resolve issues with falling through collision)  
 **Jawa-Sized** - Tracks are 0.4x scale  
 **Squash & Stretch** - Tracks squashed on x axis, stretched on y axis  
