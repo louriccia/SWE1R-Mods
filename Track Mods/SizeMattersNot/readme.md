@@ -14,3 +14,7 @@ To install, copy the `out_modelblock.bin` and `out_splineblock.bin` files into t
 **Bumpy Ride** - Track vertices are randomly offset  
 **Flatooine** - Tracks are completely flattened, fall collision tag is removed  
 **Australia Be Like** - Tracks are inverted on z axis (mostly playable except a handful of soft locks and janky respawns)  
+
+Enjoy,
+LightningPirate
+https://ko-fi.com/lightningpirate
