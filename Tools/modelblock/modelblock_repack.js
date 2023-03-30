@@ -487,7 +487,7 @@ Promise.all(replacements).then(replacements => {
                             cursor = buf.writeUInt8(node.visuals.index_buffer[j].unk2, cursor)
                             cursor = buf.writeUInt8(node.visuals.index_buffer[j].unk3, cursor)
                             bufferpointers[node.visuals.index_buffer[j].start] = cursor
-                            highlight(cursor) // node.visuals.index_buffer[j].start
+                            highlight(cursor)
                             cursor += 4
                         } else if (node.visuals.index_buffer[j].type == 3) {
                             cursor += 6
@@ -556,24 +556,20 @@ Promise.all(replacements).then(replacements => {
 
                 if (node.collision.data) {
                     buf.writeInt32BE(cursor, headstart + 4)
-
-                    const grey = true
-                    cursor = buf.writeInt16BE(node.collision.data.unk, cursor) // | 34 enables magnet mode
-                    cursor = buf.writeUInt8([1, 115].includes(index) ? 0 : node.collision.data.fog.flag, cursor) //node.collision.data.fog.flag //0 = no fog/only skybox, 1 = fog
-                    cursor = buf.writeUInt8([142, 143, 144].includes(index) ? node.collision.data.fog.b : node.collision.data.fog.r, cursor)
-                    cursor = buf.writeUInt8([142, 143, 144].includes(index) ? node.collision.data.fog.g : node.collision.data.fog.g, cursor)
-                    cursor = buf.writeUInt8([142, 143, 144].includes(index) ? node.collision.data.fog.r : node.collision.data.fog.b, cursor)
+                    cursor = buf.writeInt16BE(node.collision.data.unk, cursor) 
+                    cursor = buf.writeUInt8(node.collision.data.fog.flag, cursor)
+                    cursor = buf.writeUInt8(node.collision.data.fog.r, cursor)
+                    cursor = buf.writeUInt8(node.collision.data.fog.g, cursor)
+                    cursor = buf.writeUInt8(node.collision.data.fog.b, cursor)
                     cursor = buf.writeInt16BE(node.collision.data.fog.start, cursor)
-                    cursor = buf.writeInt16BE([1, 115].includes(index) ? 10000 : node.collision.data.fog.end, cursor) //
+                    cursor = buf.writeInt16BE(node.collision.data.fog.end, cursor) //
                     cursor = buf.writeInt16BE(node.collision.data.lights.flag, cursor)
-                    let ambient = (node.collision.data.lights.ambient_r * 0.3 + node.collision.data.lights.ambient_g * 0.59 + node.collision.data.lights.ambient_b * 0.11) * 0.2
-                    let light = (node.collision.data.lights.r * 0.3 + node.collision.data.lights.g * 0.59 + node.collision.data.lights.b * 0.11) * 0.2
-                    cursor = buf.writeUInt8(Math.round(grey && [1, 115].includes(index) ? ambient : [142, 143, 144].includes(index) ? node.collision.data.lights.ambient_b : node.collision.data.lights.ambient_r), cursor) //node.collision.data.lights.ambient_r
-                    cursor = buf.writeUInt8(Math.round(grey && [1, 115].includes(index) ? ambient : [142, 143, 144].includes(index) ? node.collision.data.lights.ambient_g : node.collision.data.lights.ambient_g), cursor) ///node.collision.data.lights.ambient_g
-                    cursor = buf.writeUInt8(Math.round(grey && [1, 115].includes(index) ? ambient : [142, 143, 144].includes(index) ? node.collision.data.lights.ambient_r : node.collision.data.lights.ambient_b), cursor) //node.collision.data.lights.ambient_b
-                    cursor = buf.writeUInt8(Math.round(grey && [1, 115].includes(index) ? light : [142, 143, 144].includes(index) ? node.collision.data.lights.b : node.collision.data.lights.r), cursor)
-                    cursor = buf.writeUInt8(Math.round(grey && [1, 115].includes(index) ? light : [142, 143, 144].includes(index) ? node.collision.data.lights.g : node.collision.data.lights.g), cursor)
-                    cursor = buf.writeUInt8(Math.round(grey && [1, 115].includes(index) ? light : [142, 143, 144].includes(index) ? node.collision.data.lights.r : node.collision.data.lights.b), cursor)
+                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_r, cursor) 
+                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_g, cursor)
+                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_b, cursor) 
+                    cursor = buf.writeUInt8(node.collision.data.lights.r, cursor)
+                    cursor = buf.writeUInt8(node.collision.data.lights.g, cursor)
+                    cursor = buf.writeUInt8(node.collision.data.lights.b, cursor)
                     cursor = buf.writeUInt8(node.collision.data.lights.unk1, cursor)
                     cursor = buf.writeUInt8(node.collision.data.lights.unk2, cursor)
                     cursor = buf.writeFloatBE(node.collision.data.lights.x, cursor)
@@ -584,8 +580,8 @@ Promise.all(replacements).then(replacements => {
                     cursor = buf.writeFloatBE(node.collision.data.lights.unk5, cursor)
                     cursor = buf.writeInt32BE(node.collision.data.flags, cursor)
                     cursor = buf.writeInt32BE(node.collision.data.unk2, cursor)
-                    cursor = buf.writeInt32BE(node.collision.data.unload, cursor) //node.collision.data.unload
-                    cursor = buf.writeInt32BE(node.collision.data.load, cursor) //node.collision.data.load
+                    cursor = buf.writeInt32BE(node.collision.data.unload, cursor) 
+                    cursor = buf.writeInt32BE(node.collision.data.load, cursor)
 
                     //      TRIGGERS
 
