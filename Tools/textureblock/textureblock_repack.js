@@ -2,15 +2,14 @@ const fs = require('fs');
 const Jimp = require('jimp');
 const texdata = require('./textures/texdata.json')
 
-let replacements = []
-
-const rp = async _ => {
+async function getReplacements() {
+    let replacements = []
     for (r = 0; r < 1648; r++) {
         console.log(r)
         let replacement = { index: r }
         if (fs.existsSync('textures/rep/' + r + '.png')) {
             console.log("found " + r + " replacement")
-            const image = await Jimp.read('textures/rep/' + r + '.png').then(image => {
+            await Jimp.read('textures/rep/' + r + '.png').then(image => {
                 console.log('r', r)
                 replacement.width = texdata[r].width
                 replacement.height = texdata[r].height
@@ -56,11 +55,12 @@ const rp = async _ => {
             replacements[r] = texdata[r]
         }
     }
+    await Promise.all(replacements)
+    return replacements
 }
 
-rp()
 
-Promise.all(replacements).then(async replacements => {
+getReplacements().then(async function (replacements) {
     console.log("writing modified in_textureblock.bin...")
     let total = Object.keys(replacements).length
 
