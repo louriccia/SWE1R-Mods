@@ -377,10 +377,11 @@ for (let j = 0; j < out_block.addresses.length - 1; j++) {
       modelstrings.push([data[i].string, data[i].float, data[i].int32, data[i].int16_1, data[i].int16_2, data[i].int8_1, data[i].int8_2, data[i].int8_3, data[i].int8_4, data[i].offset].join(", "))
     }
 
-    let name = Math.floor(j / 2)
-    fs.writeFile("models/dump/" + name + "_" + out_block.addresses[j] + ".csv", modelstrings.join('\n'), (err) => {
-      if (err) console.error(err)
-    })
+    // this block of code offers a way to dump every possible value of a model's binary
+    // let name = Math.floor(j / 2)
+    // fs.writeFile("models/dump/" + name + "_" + out_block.addresses[j] + ".csv", modelstrings.join('\n'), (err) => {
+    //   if (err) console.error(err)
+    // })
 
     let data_keys = Object.keys(data)
     console.log("Model: " + Math.floor(j / 2))

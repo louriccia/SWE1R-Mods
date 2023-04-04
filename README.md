@@ -1,15 +1,14 @@
 # SWE1R Mods
  
-This is a collection of mods I've made and am in the process of making for Star Wars Episode I: Racer. They all involve some type of mass manipulation of the game's archives:  
+This is a collection of mods for Star Wars Episode I: Racer using mass manipulation of the game's archives:  
 `out_modelblock.bin`  
 `out_textureblock.bin`  
 `out_splineblock.bin`  
 `out_spriteblock.bin`  
 
-To install these mods, just swap out your files in `Star Wars Episode I Racer / data / lev01 /` with the files included in the mod.  
-You don’t need to completely restart your game to install these mods! You can keep a mod inside your lev01 folder (as well as a backup folder), and swap out mods on the fly while the game is running. You just need to restart/start a race to apply changes.
+To install these mods, just swap out your files in `Star Wars Episode I Racer / data / lev01 /` with the files included in the mod. To apply the mod, you do not need to completely restart your game. You can swap out files on the fly while the game is running and they will take effect at the next restart/start  of a race.
 
-All my work is and will remain freely accessible but here's a link if you want to throw some truguts my way.  
+Send me some truguts:  
 https://ko-fi.com/lightningpirate
 
 ## Texture Packs

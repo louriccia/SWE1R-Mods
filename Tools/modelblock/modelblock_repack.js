@@ -1,6 +1,9 @@
 const fs = require('fs');
-//let splines = require('./out_splineblock.json') //we'll need splineblock if we want to update splines for any track mods
+let splineblock = {}
 
+if (fs.existsSync('../splineblock/out_splineblock.json')) {
+    splineblock = require('../splineblock/out_splineblock.json') //we'll need splineblock if we want to update splines for any track mods
+}
 //gather model jsons from folder (output by modelblock_unpack.js)
 let replacements = []
 for (r = 0; r < 323; r++) {
@@ -133,7 +136,7 @@ Promise.all(replacements).then(replacements => {
                     highlight(cursor)
                     cursor += 4
                 }
- 
+
                 if (node['53350']) {
                     cursor = buf.writeInt32BE(node['53350'].unk1, cursor)
                     cursor = buf.writeInt32BE(node['53350'].unk2, cursor)
@@ -322,14 +325,11 @@ Promise.all(replacements).then(replacements => {
                                 cursor = buf.writeFloatBE(Object.values(node.collision.vert_buffer[i])[j], cursor)
                             } else {
                                 if (j == 0) {
-                                    write = write * xStretch + xOffset
-                                    write = write //+ noiseMaker(Object.values(node.collision.vert_buffer[i])[0], Object.values(node.collision.vert_buffer[i])[1], Object.values(node.collision.vert_buffer[i])[2], xNoise, rep.extension)
+                                    write = write * (rep.extension == 'Trak' ? xStretch : 1) + (rep.extension == 'Trak' ? xOffset : 0)
                                 } else if (j == 1) {
-                                    write = write * yStretch + yOffset
-                                    write = write //+ noiseMaker(Object.values(node.collision.vert_buffer[i])[0], Object.values(node.collision.vert_buffer[i])[1], Object.values(node.collision.vert_buffer[i])[2], yNoise, rep.extension)
+                                    write = write * (rep.extension == 'Trak' ? yStretch : 1) + (rep.extension == 'Trak' ? yOffset : 0)
                                 } else if (j == 2) {
-                                    write = write * zStretch + zOffset + slope * Object.values(node.collision.vert_buffer[i])[1]
-                                    write = write //+ noiseMaker(Object.values(node.collision.vert_buffer[i])[0], Object.values(node.collision.vert_buffer[i])[1], Object.values(node.collision.vert_buffer[i])[2], zNoise, rep.extension)
+                                    write = write * (rep.extension == 'Trak' ? zStretch : 1) + (rep.extension == 'Trak' ? zOffset : 0) + slope * Object.values(node.collision.vert_buffer[i])[1]
                                 }
                                 cursor = buf.writeInt16BE(Math.min(rep.extension == 'Trak' ? write : Object.values(node.collision.vert_buffer[i])[j]), cursor)
                             }
@@ -348,6 +348,8 @@ Promise.all(replacements).then(replacements => {
                         cursor += node.whitespace.collision_vert_buffer
                     }
                 }
+
+                //MATERIAL DATA
 
                 if (node.visuals.material) {
                     if (!rep.materials[node.visuals.material.offset]?.address) {
@@ -520,9 +522,9 @@ Promise.all(replacements).then(replacements => {
                         let x = node.visuals.vert_buffer[i].x
                         let y = node.visuals.vert_buffer[i].y
                         let z = node.visuals.vert_buffer[i].z
-                        x = x * xStretch + xOffset //+ noiseMaker(node.visuals.vert_buffer[i].x, node.visuals.vert_buffer[i].y, node.visuals.vert_buffer[i].z, xNoise, rep.extension)
-                        y = y * yStretch + yOffset //+ noiseMaker(node.visuals.vert_buffer[i].x, node.visuals.vert_buffer[i].y, node.visuals.vert_buffer[i].z, yNoise, rep.extension)
-                        z = z * zStretch + zOffset + y * slope //+ noiseMaker(node.visuals.vert_buffer[i].x, node.visuals.vert_buffer[i].y, node.visuals.vert_buffer[i].z, zNoise, rep.extension) + y * slope
+                        x = x * (rep.extension == 'Trak' ? xStretch : 1) + (rep.extension == 'Trak' ? xOffset : 0) //+ noiseMaker(node.visuals.vert_buffer[i].x, node.visuals.vert_buffer[i].y, node.visuals.vert_buffer[i].z, xNoise, rep.extension)
+                        y = y * (rep.extension == 'Trak' ? yStretch : 1) + (rep.extension == 'Trak' ? yOffset : 0) //+ noiseMaker(node.visuals.vert_buffer[i].x, node.visuals.vert_buffer[i].y, node.visuals.vert_buffer[i].z, yNoise, rep.extension)
+                        z = z * (rep.extension == 'Trak' ? zStretch : 1) + (rep.extension == 'Trak' ? zOffset : 0) + y * slope //+ noiseMaker(node.visuals.vert_buffer[i].x, node.visuals.vert_buffer[i].y, node.visuals.vert_buffer[i].z, zNoise, rep.extension) + y * slope
 
                         cursor = buf.writeInt16BE(Math.min(!skybox ? x : node.visuals.vert_buffer[i].x), cursor)
                         cursor = buf.writeInt16BE(Math.min(!skybox ? y : node.visuals.vert_buffer[i].y), cursor)
@@ -536,19 +538,10 @@ Promise.all(replacements).then(replacements => {
                         cursor = buf.writeInt16BE(node.visuals.vert_buffer[i].uv_x, cursor)
                         cursor = buf.writeInt16BE(node.visuals.vert_buffer[i].uv_y, cursor)
 
-                        if (index == 208) {
-                            cursor = buf.writeUInt8(255, cursor)
-                            cursor = buf.writeUInt8(0, cursor)
-                            cursor = buf.writeUInt8(0, cursor)
-                            cursor = buf.writeUInt8(255, cursor)
-                        } else {
-                            const grey = true
-                            let greycolor = (node.visuals.vert_buffer[i].v_color[0] * 0.3 + node.visuals.vert_buffer[i].v_color[1] * 0.59 + node.visuals.vert_buffer[i].v_color[2] * 0.11) * 0.2
-                            cursor = buf.writeUInt8(Math.round(grey && [1, 115].includes(index) ? greycolor : [142, 143, 144].includes(index) ? node.visuals.vert_buffer[i].v_color[2] : node.visuals.vert_buffer[i].v_color[0]), cursor)
-                            cursor = buf.writeUInt8(Math.round(grey && [1, 115].includes(index) ? greycolor : [142, 143, 144].includes(index) ? node.visuals.vert_buffer[i].v_color[1] : node.visuals.vert_buffer[i].v_color[1]), cursor)
-                            cursor = buf.writeUInt8(Math.round(grey && [1, 115].includes(index) ? greycolor : [142, 143, 144].includes(index) ? node.visuals.vert_buffer[i].v_color[0] : node.visuals.vert_buffer[i].v_color[2]), cursor)
-                            cursor = buf.writeUInt8(Math.round(node.visuals.vert_buffer[i].v_color[3]), cursor)
-                        }
+                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[0], cursor)
+                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[1], cursor)
+                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[2], cursor)
+                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[3], cursor)
                     }
                 }
 
@@ -556,7 +549,7 @@ Promise.all(replacements).then(replacements => {
 
                 if (node.collision.data) {
                     buf.writeInt32BE(cursor, headstart + 4)
-                    cursor = buf.writeInt16BE(node.collision.data.unk, cursor) 
+                    cursor = buf.writeInt16BE(node.collision.data.unk, cursor)
                     cursor = buf.writeUInt8(node.collision.data.fog.flag, cursor)
                     cursor = buf.writeUInt8(node.collision.data.fog.r, cursor)
                     cursor = buf.writeUInt8(node.collision.data.fog.g, cursor)
@@ -564,9 +557,9 @@ Promise.all(replacements).then(replacements => {
                     cursor = buf.writeInt16BE(node.collision.data.fog.start, cursor)
                     cursor = buf.writeInt16BE(node.collision.data.fog.end, cursor) //
                     cursor = buf.writeInt16BE(node.collision.data.lights.flag, cursor)
-                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_r, cursor) 
+                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_r, cursor)
                     cursor = buf.writeUInt8(node.collision.data.lights.ambient_g, cursor)
-                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_b, cursor) 
+                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_b, cursor)
                     cursor = buf.writeUInt8(node.collision.data.lights.r, cursor)
                     cursor = buf.writeUInt8(node.collision.data.lights.g, cursor)
                     cursor = buf.writeUInt8(node.collision.data.lights.b, cursor)
@@ -580,7 +573,7 @@ Promise.all(replacements).then(replacements => {
                     cursor = buf.writeFloatBE(node.collision.data.lights.unk5, cursor)
                     cursor = buf.writeInt32BE(node.collision.data.flags, cursor)
                     cursor = buf.writeInt32BE(node.collision.data.unk2, cursor)
-                    cursor = buf.writeInt32BE(node.collision.data.unload, cursor) 
+                    cursor = buf.writeInt32BE(node.collision.data.unload, cursor)
                     cursor = buf.writeInt32BE(node.collision.data.load, cursor)
 
                     //      TRIGGERS
@@ -605,43 +598,6 @@ Promise.all(replacements).then(replacements => {
                             cursor += 2
                         }
                     }
-                    highlight(cursor)
-                    cursor += 4
-                } else if (rep.extension == 'Trak' && node.collision.vertex_count && !skybox && false) {
-                    buf.writeInt32BE(cursor, headstart + 4)
-                    cursor = buf.writeInt16BE(0, cursor) //node.collision.data.unk
-                    //000010
-                    //000100
-                    //010000
-                    //010010
-                    //010100
-                    //100000
-                    //100100
-                    cursor = buf.writeUInt8(0, cursor) //node.collision.data.fog.flag //0 = no fog/only skybox, 1 = fog
-                    cursor = buf.writeUInt8(255, cursor) //node.collision.data.fog.r
-                    cursor = buf.writeUInt8(255, cursor) //node.collision.data.fog.g
-                    cursor = buf.writeUInt8(255, cursor) //node.collision.data.fog.b
-                    cursor = buf.writeInt16BE(0, cursor) //node.collision.data.fog.start
-                    cursor = buf.writeInt16BE(0, cursor) //node.collision.data.fog.end
-                    cursor = buf.writeInt16BE(0, cursor) //node.collision.data.lights.flag
-                    cursor = buf.writeUInt8(0, cursor) //node.collision.data.lights.ambient_r
-                    cursor = buf.writeUInt8(0, cursor) ///node.collision.data.lights.ambient_g
-                    cursor = buf.writeUInt8(0, cursor) //node.collision.data.lights.ambient_b
-                    cursor = buf.writeUInt8(0, cursor) //node.collision.data.lights.r
-                    cursor = buf.writeUInt8(0, cursor) //node.collision.data.lights.g
-                    cursor = buf.writeUInt8(0, cursor) //node.collision.data.lights.b
-                    cursor = buf.writeUInt8(0, cursor) //node.collision.data.lights.unk1
-                    cursor = buf.writeUInt8(0, cursor) //node.collision.data.lights.unk2
-                    cursor = buf.writeFloatBE(0, cursor) //node.collision.data.lights.x
-                    cursor = buf.writeFloatBE(0, cursor) //node.collision.data.lights.y
-                    cursor = buf.writeFloatBE(0, cursor) //node.collision.data.lights.z
-                    cursor = buf.writeFloatBE(0, cursor) //node.collision.data.lights.unk3
-                    cursor = buf.writeFloatBE(0, cursor) //node.collision.data.lights.unk4
-                    cursor = buf.writeFloatBE(0, cursor) //node.collision.data.lights.unk5
-                    cursor = buf.writeInt32BE(32, cursor) //node.collision.data.flags  32 = slip, 16 = swst, 8 = slow, 4 = fast
-                    cursor = buf.writeInt32BE(0, cursor) //node.collision.data.unk2
-                    cursor = buf.writeInt32BE(0, cursor) //node.collision.data.unload
-                    cursor = buf.writeInt32BE(0, cursor) //node.collision.data.load
                     highlight(cursor)
                     cursor += 4
                 }
@@ -891,56 +847,59 @@ Promise.all(replacements).then(replacements => {
     fs.writeFileSync('models/out/out_modelblock.bin', mb);
 
 
-    // let splineblock = Buffer.alloc(700000)
-    // cursor = 0
-    // splineblock.writeInt32BE(splines.length, cursor)
-    // cursor = splines.length * 4 + 8
-    // for (let s = 0; s < splines.length; s++) {
-    //     splineblock.writeInt32BE(cursor, s * 4 + 4)
-    //     for (let i = 0; i < 8; i++) {
-    //         if (i == 6) {
-    //             cursor = splineblock.writeInt32BE(splines[s].header.unknown_address, cursor)
-    //             i++
-    //         } else {
-    //             cursor = splineblock.writeInt16BE(splines[s].header["unknown_" + i], cursor)
-    //         }
-    //     }
-    //     for (let p = 0; p < splines[s].points.length; p++) {
-    //         let point = splines[s].points[p]
-    //         cursor = splineblock.writeInt16BE(point.splits, cursor)
-    //         cursor = splineblock.writeInt16BE(point.joins, cursor)
-    //         cursor = splineblock.writeInt16BE(point.next1, cursor)
-    //         cursor = splineblock.writeInt16BE(point.next2, cursor)
-    //         cursor = splineblock.writeInt16BE(point.previous1, cursor)
-    //         cursor = splineblock.writeInt16BE(point.previous2, cursor)
-    //         cursor = splineblock.writeInt16BE(point.unknown1, cursor)
-    //         cursor = splineblock.writeInt16BE(point.unknown2, cursor)
-    //         cursor = splineblock.writeFloatBE(point.point_x * xStretch + xOffset + xSplineOffset + noiseMaker(point.point_x, point.point_y, point.point_z, xNoise, 'Trak'), cursor)
-    //         cursor = splineblock.writeFloatBE(point.point_y * yStretch + yOffset + ySplineOffset + noiseMaker(point.point_x, point.point_y, point.point_z, yNoise, 'Trak'), cursor)
-    //         cursor = splineblock.writeFloatBE(point.point_z * zStretch + zOffset + zSplineOffset + point.point_y * slope + noiseMaker(point.point_x, point.point_y, point.point_z, zNoise, 'Trak'), cursor)
-    //         cursor = splineblock.writeFloatBE(point.unknown_x, cursor)
-    //         cursor = splineblock.writeFloatBE(point.unknown_y, cursor)
-    //         cursor = splineblock.writeFloatBE(point.unknown_z, cursor)
-    //         cursor = splineblock.writeFloatBE(point.handle1_x * xStretch + xOffset + xSplineOffset, cursor) //+ noiseMaker(point.handle1_x, point.handle1_y, point.handle1_z, xNoise, 'Trak'), cursor)
-    //         cursor = splineblock.writeFloatBE(point.handle1_y * yStretch + yOffset + ySplineOffset, cursor) //+ noiseMaker(point.handle1_x, point.handle1_y, point.handle1_z, yNoise, 'Trak'), cursor)
-    //         cursor = splineblock.writeFloatBE(point.handle1_z * zStretch + zOffset + zSplineOffset + point.handle1_y * slope, cursor) //+ noiseMaker(point.handle1_x, point.handle1_y, point.handle1_z, zNoise, 'Trak'), cursor)
-    //         cursor = splineblock.writeFloatBE(point.handle2_x * xStretch + xOffset + xSplineOffset, cursor) //+ noiseMaker(point.handle2_x, point.handle2_y, point.handle2_z, xNoise, 'Trak'), cursor)
-    //         cursor = splineblock.writeFloatBE(point.handle2_y * yStretch + yOffset + ySplineOffset, cursor) //+ noiseMaker(point.handle2_x, point.handle2_y, point.handle2_z, yNoise, 'Trak'), cursor)
-    //         cursor = splineblock.writeFloatBE(point.handle2_z * zStretch + zOffset + zSplineOffset + point.handle2_y * slope, cursor) //+ noiseMaker(point.handle2_x, point.handle2_y, point.handle2_z, zNoise, 'Trak'), cursor)
-    //         cursor = splineblock.writeInt16BE(point.point_num0, cursor)
-    //         cursor = splineblock.writeInt16BE(point.point_num1, cursor)
-    //         cursor = splineblock.writeInt16BE(point.point_num2, cursor)
-    //         cursor = splineblock.writeInt16BE(point.point_num3, cursor)
-    //         cursor = splineblock.writeInt16BE(point.point_num4, cursor)
-    //         cursor = splineblock.writeInt16BE(point.point_num5, cursor)
-    //         cursor = splineblock.writeInt16BE(point.point_num6, cursor)
-    //         cursor = splineblock.writeInt16BE(point.point_num7, cursor)
-    //         cursor = splineblock.writeInt16BE(point.point_num8, cursor)
-    //         cursor = splineblock.writeInt16BE(point.point_unk, cursor)
-    //     }
-    // }
-    //splineblock.writeInt32BE(cursor, splines.length * 4 + 4)
+    if (splineblock) {
+        let splineblock_new = Buffer.alloc(700000)
+        cursor = 0
+        splineblock_new.writeInt32BE(splineblock.splines.length, cursor)
+        cursor = splineblock.splines.length * 4 + 8
+        for (let s = 0; s < splineblock.splines.length; s++) {
+            splineblock_new.writeInt32BE(cursor, s * 4 + 4)
+            for (let i = 0; i < 8; i++) {
+                if (i == 6) {
+                    cursor = splineblock_new.writeInt32BE(splineblock.splines[s].header.unknown_address, cursor)
+                    i++
+                } else {
+                    cursor = splineblock_new.writeInt16BE(splineblock.splines[s].header["unknown_" + i], cursor)
+                }
+            }
+            for (let p = 0; p < splineblock.splines[s].points.length; p++) {
+                let point = splineblock.splines[s].points[p]
+                cursor = splineblock_new.writeInt16BE(point.splits, cursor)
+                cursor = splineblock_new.writeInt16BE(point.joins, cursor)
+                cursor = splineblock_new.writeInt16BE(point.next1, cursor)
+                cursor = splineblock_new.writeInt16BE(point.next2, cursor)
+                cursor = splineblock_new.writeInt16BE(point.previous1, cursor)
+                cursor = splineblock_new.writeInt16BE(point.previous2, cursor)
+                cursor = splineblock_new.writeInt16BE(point.unknown1, cursor)
+                cursor = splineblock_new.writeInt16BE(point.unknown2, cursor)
+                cursor = splineblock_new.writeFloatBE(point.point_x * xStretch + xOffset + xSplineOffset, cursor)
+                cursor = splineblock_new.writeFloatBE(point.point_y * yStretch + yOffset + ySplineOffset, cursor)
+                cursor = splineblock_new.writeFloatBE(point.point_z * zStretch + zOffset + zSplineOffset + point.point_y * slope, cursor)
+                cursor = splineblock_new.writeFloatBE(point.unknown_x, cursor)
+                cursor = splineblock_new.writeFloatBE(point.unknown_y, cursor)
+                cursor = splineblock_new.writeFloatBE(point.unknown_z, cursor)
+                cursor = splineblock_new.writeFloatBE(point.handle1_x * xStretch + xOffset + xSplineOffset, cursor) //+ noiseMaker(point.handle1_x, point.handle1_y, point.handle1_z, xNoise, 'Trak'), cursor)
+                cursor = splineblock_new.writeFloatBE(point.handle1_y * yStretch + yOffset + ySplineOffset, cursor) //+ noiseMaker(point.handle1_x, point.handle1_y, point.handle1_z, yNoise, 'Trak'), cursor)
+                cursor = splineblock_new.writeFloatBE(point.handle1_z * zStretch + zOffset + zSplineOffset + point.handle1_y * slope, cursor) //+ noiseMaker(point.handle1_x, point.handle1_y, point.handle1_z, zNoise, 'Trak'), cursor)
+                cursor = splineblock_new.writeFloatBE(point.handle2_x * xStretch + xOffset + xSplineOffset, cursor) //+ noiseMaker(point.handle2_x, point.handle2_y, point.handle2_z, xNoise, 'Trak'), cursor)
+                cursor = splineblock_new.writeFloatBE(point.handle2_y * yStretch + yOffset + ySplineOffset, cursor) //+ noiseMaker(point.handle2_x, point.handle2_y, point.handle2_z, yNoise, 'Trak'), cursor)
+                cursor = splineblock_new.writeFloatBE(point.handle2_z * zStretch + zOffset + zSplineOffset + point.handle2_y * slope, cursor) //+ noiseMaker(point.handle2_x, point.handle2_y, point.handle2_z, zNoise, 'Trak'), cursor)
+                cursor = splineblock_new.writeInt16BE(point.point_num0, cursor)
+                cursor = splineblock_new.writeInt16BE(point.point_num1, cursor)
+                cursor = splineblock_new.writeInt16BE(point.point_num2, cursor)
+                cursor = splineblock_new.writeInt16BE(point.point_num3, cursor)
+                cursor = splineblock_new.writeInt16BE(point.point_num4, cursor)
+                cursor = splineblock_new.writeInt16BE(point.point_num5, cursor)
+                cursor = splineblock_new.writeInt16BE(point.point_num6, cursor)
+                cursor = splineblock_new.writeInt16BE(point.point_num7, cursor)
+                cursor = splineblock_new.writeInt16BE(point.point_num8, cursor)
+                cursor = splineblock_new.writeInt16BE(point.point_unk, cursor)
+            }
+        }
+        splineblock_new.writeInt32BE(cursor, splineblock.splines.length * 4 + 4)
 
-    //fs.writeFileSync('models/out/out_splineblock.bin', splineblock);
+        fs.writeFileSync('models/out/out_splineblock.bin', splineblock_new);
+    }
+
 
 })

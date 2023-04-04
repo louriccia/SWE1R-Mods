@@ -15,28 +15,25 @@ for (let j = 1; j < 93; j++) {
 for (let j = 0; j < out_spline.addresses.length - 1; j++) {
   cursor = out_spline.addresses[j]
   let spline = {
-    offset: cursor,
     header: {},
     points: []
   }
   spline.offset = cursor
-  for (let i = 0; i < 8; i++) {
-    if (i == 6) {
-      spline.header["unknown_address"] = file.readInt32BE(cursor)
-      cursor += 4
-      i++
-    } else {
-      spline.header["unknown_" + i] = file.readInt16BE(cursor)
-      cursor += 2
-    }
-  }
+  spline.unknown = file.readInt32BE(cursor)
+  cursor += 4
+  spline.point_count = file.readInt32BE(cursor)
+  cursor += 4
+  spline.segment_count = file.readInt32BE(cursor)
+  cursor += 4
+  spline.unknown2 = file.readInt32BE(cursor)
+  cursor += 4
+  let spline_num = 0
   for (let i = cursor; i < out_spline.addresses[j + 1]; i += 84) {
     cursor = i
     let point = {}
-    point.offset = cursor
-    point.splits = file.readInt16BE(cursor)
+    point.next_count = file.readInt16BE(cursor)
     cursor += 2
-    point.joins = file.readInt16BE(cursor)
+    point.previous_count = file.readInt16BE(cursor)
     cursor += 2
     point.next1 = file.readInt16BE(cursor)
     cursor += 2
@@ -56,11 +53,11 @@ for (let j = 0; j < out_spline.addresses.length - 1; j++) {
     cursor += 4
     point.point_z = file.readFloatBE(cursor)
     cursor += 4
-    point.unknown_x = file.readFloatBE(cursor)
+    point.rotation_x = file.readFloatBE(cursor)
     cursor += 4
-    point.unknown_y = file.readFloatBE(cursor)
+    point.rotation_y = file.readFloatBE(cursor)
     cursor += 4
-    point.unknown_z = file.readFloatBE(cursor)
+    point.rotation_z = file.readFloatBE(cursor)
     cursor += 4
     point.handle1_x = file.readFloatBE(cursor)
     cursor += 4
@@ -93,15 +90,20 @@ for (let j = 0; j < out_spline.addresses.length - 1; j++) {
     point.point_num8 = file.readInt16BE(cursor)
     cursor += 2
     point.point_unk = file.readInt16BE(cursor)
-
     spline.points.push(point)
+    console.log(point.point_unk)
+    spline_num ++
   }
+  //console.log(j, spline.unknown, spline.point_count, spline.segment_count, spline.points.map(p => p.splits).reduce((a,b) => a + b), spline.segment_count == spline.points.map(p => p.splits == 0 ? 1 : p.splits).reduce((a,b) => a + b), spline.unknown2)
   out_spline.splines.push(spline)
+  fs.writeFile(`splines/${j}.json`, JSON.stringify(spline), (err) => {
+    if (err) console.error(err)
+  })
 }
 
 fs.writeFile("out_splineblock.json", JSON.stringify(out_spline), (err) => {
   if (err) console.error(err)
 });
 
-
+console.log(`successfully unpacked out_splineblock to ${out_spline.splines.length} /splines`)
 

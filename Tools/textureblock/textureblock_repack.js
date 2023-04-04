@@ -7,9 +7,9 @@ async function getReplacements() {
     for (r = 0; r < 1648; r++) {
         console.log(r)
         let replacement = { index: r }
-        if (fs.existsSync('textures/rep/' + r + '.png')) {
+         if (fs.existsSync('textures/rep/' + r + '.png')) { 
             console.log("found " + r + " replacement")
-            await Jimp.read('textures/rep/' + r + '.png').then(image => {
+            await Jimp.read('textures/rep/' + r+ '.png').then(image => {
                 console.log('r', r)
                 replacement.width = texdata[r].width
                 replacement.height = texdata[r].height
