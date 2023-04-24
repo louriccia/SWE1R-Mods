@@ -6085,8 +6085,8 @@ texdata = {
     },
     "1216": {
         "format": 1024,
-        "width": 32,
-        "height": 32
+        "width": 64,
+        "height": 64
     },
     "1217": {
         "format": 512,
