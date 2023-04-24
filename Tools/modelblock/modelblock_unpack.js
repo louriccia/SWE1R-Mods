@@ -956,7 +956,7 @@ for (let j = 0; j < out_block.addresses.length - 1; j++) {
     }
 
 
-    fs.writeFile("models/new/" + model.model + ".json", JSON.stringify(model), (err) => {
+    fs.writeFile("models/" + model.model + ".json", JSON.stringify(model), (err) => {
       if (err) console.error(err)
     })
 

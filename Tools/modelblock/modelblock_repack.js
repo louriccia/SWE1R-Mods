@@ -17,9 +17,9 @@ for (r = 0; r < 323; r++) {
             })
         });
 
-    } else if (fs.existsSync('models/new/' + r + '.json')) {
+    } else if (fs.existsSync('models/' + r + '.json')) {
         replacements[r] = new Promise((resolve, reject) => {
-            fs.readFile('models/new/' + r + '.json', async (err, data) => {
+            fs.readFile('models/' + r + '.json', async (err, data) => {
                 if (err) throw err;
                 resolve(JSON.parse(data))
                 return JSON.parse(data)
@@ -396,6 +396,34 @@ Promise.all(replacements).then(replacements => {
                         if (node.visuals.material.unk_data) {
                             highlight(cursor) //node.visuals.material.unk_data
                         }
+
+                        let fixed_32x32 = [49, 58, 99, 924, 966, 991, 992, 1000, 1048, 1064]
+                        let fixed_32x16 = [972]
+                        let fixed_64x16 = [1014]
+
+                        function replaceWidth(width, index) {
+                            let val = width
+                            if (fixed_32x32.includes(index)) {
+                                val = 32
+                            } else if (fixed_32x16.includes(index)) {
+                                val = 32
+                            } else if (fixed_64x16.includes(index)) {
+                                val = 64
+                            }
+                            return val
+                        }
+                        function replaceHeight(height, index) {
+                            let val = height
+                            if (fixed_32x32.includes(index)) {
+                                val = 32
+                            } else if (fixed_32x16.includes(index)) {
+                                val = 16
+                            } else if (fixed_64x16.includes(index)) {
+                                val = 16
+                            }
+                            return val
+                        }
+
                         cursor += 4
                         if (node.visuals.material.texture_data) {
                             if (!rep.textures[node.visuals.material.texture_data.offset]?.address) {
@@ -403,23 +431,25 @@ Promise.all(replacements).then(replacements => {
                                     rep.textures[node.visuals.material.texture_data.offset] = {}
                                 }
                                 buf.writeInt32BE(cursor, materialstart + 8)
+                                let ti = node.visuals.material.texture_data.tex_index
                                 rep.textures[node.visuals.material.texture_data.offset].address = cursor
-                                cursor = buf.writeInt32BE(node.visuals.material.texture_data.unk0, cursor)
-                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk1, cursor) //0, 1, 65, 73 node.visuals.material.texture_data.unk1
-                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk2, cursor)
-                                cursor = buf.writeInt32BE(node.visuals.material.texture_data.unk3, cursor)
+                                cursor = buf.writeInt32BE(node.visuals.material.texture_data.unk0, cursor)//0, 1, 65, 73 node.visuals.material.texture_data.unk1 //node.visuals.material.texture_data.unk0
+                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk1, cursor) //node.visuals.material.texture_data.unk1, ti, true, false) //strange stretching/bluring effect, also removes gliding texture animations
+                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk2, cursor) //replaceHeight(node.visuals.material.texture_data.unk2, ti, true, false)
+                                cursor = buf.writeInt32BE(node.visuals.material.texture_data.unk3, cursor) //node.visuals.material.texture_data.unk3
                                 cursor = buf.writeInt16BE(node.visuals.material.texture_data.format, cursor)
                                 cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk4, cursor) //(node.visuals.material.texture_data.unk4
-                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.width, cursor)
-                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.height, cursor)
-                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk5, cursor)
-                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk6, cursor)
-                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk7, cursor)
-                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk8, cursor)
+
+                                cursor = buf.writeInt16BE(replaceWidth(node.visuals.material.texture_data.width, ti), cursor)
+                                cursor = buf.writeInt16BE(replaceHeight(node.visuals.material.texture_data.height, ti), cursor)
+                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk5, cursor) //node.visuals.material.texture_data.unk5
+                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk6, cursor) //node.visuals.material.texture_data.unk6
+                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk7, cursor) //node.visuals.material.texture_data.unk7
+                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk8, cursor) //node.visuals.material.texture_data.unk8
                                 let unk_pointer_start = cursor
                                 cursor += 28
                                 highlight(cursor)
-                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk9, cursor)
+                                cursor = buf.writeInt16BE(2560, cursor) //node.visuals.material.texture_data.unk9 game breaking
                                 cursor = buf.writeInt16BE(node.visuals.material.texture_data.tex_index, cursor)
                                 cursor += 4
 
@@ -429,8 +459,8 @@ Promise.all(replacements).then(replacements => {
                                     cursor = buf.writeInt32BE(node.visuals.material.texture_data.unk_pointers[p].unk0, cursor)
                                     cursor = buf.writeInt32BE(node.visuals.material.texture_data.unk_pointers[p].unk1, cursor)
                                     cursor = buf.writeInt32BE(node.visuals.material.texture_data.unk_pointers[p].unk2, cursor)
-                                    cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk_pointers[p].unk3, cursor)
-                                    cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk_pointers[p].unk4, cursor)
+                                    cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk_pointers[p].unk3, cursor) //replaceWidth(node.visuals.material.texture_data.unk_pointers[p].unk3, ti, true, true)
+                                    cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk_pointers[p].unk4, cursor) //replaceHeight(node.visuals.material.texture_data.unk_pointers[p].unk4, ti, true, true)
                                 }
 
                             } else {
@@ -440,10 +470,10 @@ Promise.all(replacements).then(replacements => {
                         if (node.visuals.material.unk_data) {
                             buf.writeInt32BE(cursor, materialstart + 12)
 
-                            cursor = buf.writeInt16BE(node.visuals.material.unk_data.unk0, cursor) //always 0
+                            cursor = buf.writeInt16BE(0, cursor) //always 0 //node.visuals.material.unk_data.unk0
                             cursor = buf.writeInt16BE(node.visuals.material.unk_data.unk1, cursor) //0, 1, 8, 9    node.visuals.material.unk_data.unk1
                             cursor = buf.writeInt16BE(node.visuals.material.unk_data.unk2, cursor) //node.visuals.material.unk_data.unk2
-                            cursor = buf.writeInt16BE(node.visuals.material.unk_data.unk3, cursor) //node.visuals.material.unk_data.unk3
+                            cursor = buf.writeInt16BE(node.visuals.material.unk_data.unk3, cursor) //setting to 0 removes tinting on shadows/green arrow/start line object binder
                             cursor = buf.writeInt16BE(node.visuals.material.unk_data.unk4, cursor) //node.visuals.material.unk_data.unk4
                             cursor = buf.writeInt16BE(node.visuals.material.unk_data.unk5, cursor) //node.visuals.material.unk_data.unk5
                             cursor = buf.writeInt16BE(node.visuals.material.unk_data.unk6, cursor) //node.visuals.material.unk_data.unk6 messed up shadows/effects
@@ -533,10 +563,13 @@ Promise.all(replacements).then(replacements => {
                         adjustBB('x', x, bb)
                         adjustBB('y', y, bb)
                         adjustBB('z', z, bb)
-
+                        let fixed_32x32 = [49, 58, 99, 924, 966, 991, 992, 1000, 1048, 1064]
+                        let fixed_32x16 = [972]
+                        let fixed_64x16 = [1014]
+                        let ti = node.visuals.material.texture_data.tex_index
                         cursor += 2
                         cursor = buf.writeInt16BE(node.visuals.vert_buffer[i].uv_x, cursor)
-                        cursor = buf.writeInt16BE(node.visuals.vert_buffer[i].uv_y, cursor)
+                        cursor = buf.writeInt16BE(node.visuals.vert_buffer[i].uv_y, cursor) //(fixed_32x32.includes(ti) ? .5 : 1) * 
 
                         cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[0], cursor)
                         cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[1], cursor)
@@ -844,7 +877,7 @@ Promise.all(replacements).then(replacements => {
 
     let mb = Buffer.concat(modelblock)
 
-    fs.writeFileSync('models/out/out_modelblock.bin', mb);
+    fs.writeFileSync('out/out_modelblock.bin', mb);
 
 
     if (splineblock) {
@@ -898,7 +931,7 @@ Promise.all(replacements).then(replacements => {
         }
         splineblock_new.writeInt32BE(cursor, splineblock.splines.length * 4 + 4)
 
-        fs.writeFileSync('models/out/out_splineblock.bin', splineblock_new);
+        fs.writeFileSync('out/out_splineblock.bin', splineblock_new);
     }
 
 

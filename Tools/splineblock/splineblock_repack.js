@@ -105,8 +105,8 @@ Promise.all(replacements).then(replacements => {
             cursor = file.writeInt16BE(replacements[j].points[i].next2, cursor) //index of the second point this connects to
             cursor = file.writeInt16BE(replacements[j].points[i].previous1, cursor) //index of the first point that connects to this
             cursor = file.writeInt16BE(replacements[j].points[i].previous2, cursor) //index of the second point that connects to this
-            cursor = file.writeInt16BE(replacements[j].points[i].unknown1, cursor)
-            cursor = file.writeInt16BE(replacements[j].points[i].unknown2, cursor)
+            cursor = file.writeInt16BE(replacements[j].points[i].unknown1, cursor) //
+            cursor = file.writeInt16BE(replacements[j].points[i].unknown2, cursor) //
             //xyz coordinates of the point in global space
             cursor = file.writeFloatBE(replacements[j].points[i].point_x, cursor)
             cursor = file.writeFloatBE(replacements[j].points[i].point_y, cursor)
@@ -124,11 +124,11 @@ Promise.all(replacements).then(replacements => {
             cursor = file.writeFloatBE(replacements[j].points[i].handle2_y, cursor)
             cursor = file.writeFloatBE(replacements[j].points[i].handle2_z, cursor)
             //the 'progress' index of the point, this value seens to determine where the player appears on the progress meter
-            cursor = file.writeInt16BE(0, cursor) //replacements[j].points[i].point_num0
-            //the actual index of the point
-            cursor = file.writeInt16BE(-1, cursor) //replacements[j].points[i].point_num1
-            //the overflow index of the point
-            cursor = file.writeInt16BE(-1, cursor) //replacements[j].points[i].point_num2
+            cursor = file.writeInt16BE(replacements[j].points[i].point_num0, cursor) //
+            //the actual index of the point, setting to -1 doesn't seem to affect anything
+            cursor = file.writeInt16BE(replacements[j].points[i].point_num1, cursor)
+            //the overflow index of the point, setting to -1 doesn't seem to affect anything
+            cursor = file.writeInt16BE(replacements[j].points[i].point_num2, cursor)
             //remaining indeces are always -1
             cursor = file.writeInt16BE(replacements[j].points[i].point_num3, cursor)
             cursor = file.writeInt16BE(replacements[j].points[i].point_num4, cursor)
@@ -137,7 +137,7 @@ Promise.all(replacements).then(replacements => {
             cursor = file.writeInt16BE(replacements[j].points[i].point_num7, cursor)
             cursor = file.writeInt16BE(replacements[j].points[i].point_num8, cursor)
 
-            cursor = file.writeInt16BE(replacements[j].points[i].point_unk, cursor)
+            cursor = file.writeInt16BE(0, cursor) //replacements[j].points[i].point_unk
         }
     }
 

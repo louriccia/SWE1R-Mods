@@ -1,7 +1,7 @@
 const fs = require('fs');
 const Jimp = require('jimp');
 
-const file = fs.readFileSync('out_textureblock.bin')
+const file = fs.readFileSync('./in/pc/out_textureblock.bin')
 texdata = {
     "0": {
         "format": 512,
@@ -5240,7 +5240,7 @@ texdata = {
     },
     "1047": {
         "format": 512,
-        "width": 47,
+        "width": 64,
         "height": 64
     },
     "1048": {
@@ -6085,8 +6085,8 @@ texdata = {
     },
     "1216": {
         "format": 1024,
-        "width": 64,
-        "height": 64
+        "width": 32,
+        "height": 32
     },
     "1217": {
         "format": 512,
@@ -8277,6 +8277,7 @@ for (t = 0; t < Object.keys(texdata).length; t++) {
         used for lens flares and suns
       Format 512 / 0x200:
         Palette
+        16
         each pixel (2 byte integer) points to a color in the palette
         used for flags and engines
       Format 513 / 0x201:
@@ -8378,7 +8379,16 @@ Object.keys(texdata).forEach((t, ind) => {
                         p = tex.pixels[index]
                         color = Jimp.rgbaToInt(p[0], p[1], p[2], p[3])
                     }
-                    image.setPixelColor(color, j, tex.height - 1 - i);
+                    let x = 0
+                    //certain textures in the pc release are scrambled and must use the following code to be drawn correctly
+                    if (i % 2 == 1 && [49, 58, 99, 924, 966, 972, 991, 992, 1000, 1048, 1064].includes(ind)) {
+                        if (Math.floor(j / 8) % 2 == 0) {
+                            x = 8
+                        } else {
+                            x = -8
+                        }
+                    }
+                    image.setPixelColor(color, j + x, tex.height - 1 - i);
 
                 }
             }
