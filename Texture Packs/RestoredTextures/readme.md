@@ -1,4 +1,4 @@
-### Restored Textures v1.0
+### Restored Textures v1.1
 
 This mod restores a handful of scrambled textures to their intended state in the N64 version of the game. Most noteable improvements are the Oovo IV anti-gravity tubes and Ord Ibanna railings/roofing/scaffolding.
 
