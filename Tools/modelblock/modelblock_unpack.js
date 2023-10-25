@@ -328,13 +328,12 @@ let names = [
   "",
   "N64 Memory Expansion Pak",
 ]
- 
+
 let cursor = 0
 out_block.addresses = []
 out_block.unkheader = []
 out_block.model_count = file.readInt32BE(cursor)
 out_block.models = []
-
 //get list of model addresses
 for (let j = 0; j < out_block.model_count * 2 + 1; j++) {
   cursor = (j + 1) * 4
@@ -554,7 +553,7 @@ for (let j = 0; j < out_block.addresses.length - 1; j++) {
 
           if ([20580, 20581, 20582, 12388, 53348, 53349, 53350].includes(data[data_keys[i]].int32)) {
             let mesh_group = false
-            parent[new_parent] = { head: [data[data_keys[i]].int32, data[data_keys[i + 1]].int32, data[data_keys[i + 2]].int32, data[data_keys[i + 3]].int32, data[data_keys[i + 4]].int32], children: {}, childlist: [], whitespace: {} }
+            parent[new_parent] = { head: [data[data_keys[i]].int32, data[data_keys[i + 1]].int32, data[data_keys[i + 2]].int32, data[data_keys[i + 3]].int32, data[data_keys[i + 4]].int32], children: {}, childlist: [] }
 
             if (data[data_keys[i]].int32 == 12388) {
               mesh_group = true
@@ -631,11 +630,6 @@ for (let j = 0; j < out_block.addresses.length - 1; j++) {
               for (let c = 0; c < child_count; c++) {
                 child_addresses.push(data[data_keys[i + c]].int32)
               }
-              if ([20580, 53349].includes(data[data_keys[header_i]].int32)) {
-                if (data[data_keys[i + child_count]].int32 == 0 && [20580, 53349].includes(data[data_keys[i + child_count + 1]].int32)) {
-                  parent[new_parent].whitespace.before_head = 4
-                }
-              }
               parent[new_parent].childlist = child_addresses
               child_addresses.forEach(address => {
                 if (address) {
@@ -644,6 +638,7 @@ for (let j = 0; j < out_block.addresses.length - 1; j++) {
                     parent[new_parent].children[i * 4] = { repeat: address }
                   } else {
                     if (mesh_group) {
+                      //console.log('header')
                       i = address / 4
                       let header = {
                         collision: {
@@ -667,24 +662,19 @@ for (let j = 0; j < out_block.addresses.length - 1; j++) {
                         max_y: data[data_keys[i + 6]].float,
                         max_z: data[data_keys[i + 7]].float,
                         vert_strip_count: data[data_keys[i + 8]].int16_1,
-                        vert_strip_default: data[data_keys[i + 8]].int16_2,
-                        whitespace: {}
-                      }
-                      if (data[data_keys[i + 16]].int32 == 0) {
-                        header.whitespace.header = 4
+                        vert_strip_default: data[data_keys[i + 8]].int16_2
                       }
                       //console.log(header)
                       if (header.collision.vert_strips) {
+                        //console.log('vert strips')
                         let vert_strips = header.collision.vert_strips / 4
                         header.collision.vert_strips = []
                         for (v = 0; v < header.vert_strip_count; v++) {
                           header.collision.vert_strips.push(data[data_keys[vert_strips + v]].int32)
                         }
-                        if (data[data_keys[vert_strips + header.vert_strip_count]].int32 == 0) {
-                          header.whitespace.vert_strips = 4
-                        }
                       }
                       if (header.collision.vert_buffer) {
+                        //console.log('vert buffer')
                         let vert_buffer = header.collision.vert_buffer / 4
                         header.collision.vert_buffer = []
                         if (model.model == 114) {
@@ -699,9 +689,6 @@ for (let j = 0; j < out_block.addresses.length - 1; j++) {
                               [data[data_keys[vert_buffer + v]].int16_1, data[data_keys[vert_buffer + v]].int16_2, data[data_keys[vert_buffer + v + 1]].int16_1],
                               [data[data_keys[vert_buffer + v + 1]].int16_2, data[data_keys[vert_buffer + v + 2]].int16_1, data[data_keys[vert_buffer + v + 2]].int16_2]
                             )
-                          }
-                          if (data[data_keys[vert_buffer + Math.ceil(header.collision.vertex_count * 3 / 2)]].int32 == 0) {
-                            header.whitespace.collision_vert_buffer = 4
                           }
                         }
 
@@ -820,6 +807,7 @@ for (let j = 0; j < out_block.addresses.length - 1; j++) {
 
                         }
                         if (mat_stuff.unk_data) {
+                          //console.log('vis mat')
                           let tex = mat_stuff.unk_data / 4
                           mat_stuff.unk_data = {
                             unk0: data[data_keys[tex]].int16_1, //always 0
@@ -850,9 +838,6 @@ for (let j = 0; j < out_block.addresses.length - 1; j++) {
                             unk21: data[data_keys[tex + 11]].int16_2,
                             unk22: data[data_keys[tex + 12]].int16_1,
                             unk23: data[data_keys[tex + 12]].int16_2
-                          }
-                          if (data[data_keys[tex + 13]].int32 == 0) {
-                            header.whitespace.visuals_material = 4
                           }
                           if (mat_stuff.unk_data &&
                             mat_stuff.unk_data.unk22 &&
@@ -961,6 +946,4 @@ for (let j = 0; j < out_block.addresses.length - 1; j++) {
     })
 
   }
-
-
 }

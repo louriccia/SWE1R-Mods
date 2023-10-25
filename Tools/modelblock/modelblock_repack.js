@@ -39,14 +39,15 @@ const zOffset = 0
 const xSplineOffset = 0
 const ySplineOffset = 0
 const zSplineOffset = 0
-
 Promise.all(replacements).then(replacements => {
 
     let models = []
     let highlights = []
 
     function writeModel(index) {
+        console.log(`---- MODEL ${index} ----`)
         //writes an entire model to the buffer
+
 
         let cursor = 0
         let buf = Buffer.alloc(1000000)
@@ -219,10 +220,6 @@ Promise.all(replacements).then(replacements => {
                         highlight(cursor)
                         cursor += 4
                     }
-                    if (node.whitespace.before_head) {
-                        cursor += node.whitespace.before_head
-                    }
-
                     //write children
                     for (let c = 0; c < numberofchildren; c++) {
                         let child = node.childlist[c]
@@ -241,10 +238,12 @@ Promise.all(replacements).then(replacements => {
                     highlight(cursor)
                 }
                 cursor += 4
+
                 if (node.collision.data || (rep.extension == 'Trak' && node.collision.vertex_count)) {
                     highlight(cursor)
                 }
                 cursor += 4
+
                 let minmax = cursor
                 cursor = buf.writeFloatBE(node.min_x, cursor)
                 cursor = buf.writeFloatBE(node.min_y, cursor)
@@ -271,10 +270,12 @@ Promise.all(replacements).then(replacements => {
 
                 cursor = buf.writeInt16BE(node.vert_strip_count, cursor)
                 cursor = buf.writeInt16BE(node.vert_strip_default, cursor)
+
                 if (node.collision.vert_strips) {
                     highlight(cursor)
                 }
                 cursor += 4
+
                 for (let g = 0; g < childkeeper.length; g++) {
                     if (childkeeper[g].original == node.visuals.group_parent && childkeeper[g].replaced) {
                         buf.writeInt32BE(childkeeper[g].replaced, cursor)
@@ -285,38 +286,42 @@ Promise.all(replacements).then(replacements => {
                     highlight(cursor)
                 }
                 cursor += 4
+
                 if (node.collision.vert_buffer) {
                     highlight(cursor)
                 }
                 cursor += 4
+
                 if (node.visuals.index_buffer) {
                     highlight(cursor)
                 }
                 cursor += 4
+
                 if (node.visuals.vert_buffer) {
                     highlight(cursor)
                 }
                 cursor += 4
+
                 cursor = buf.writeInt16BE(node.collision.vertex_count, cursor)
+
                 cursor = buf.writeInt16BE(node.visuals.vert_count, cursor)
+
                 cursor += 2
                 cursor = buf.writeInt16BE(node.visuals.group_count, cursor)
-                if (node.whitespace.header) {
-                    cursor += node.whitespace.header
-                }
+
                 if (id == '60312' && index == 1) {
                     cursor += 12
                 }
                 if (node.collision.vert_strips) {
+
                     buf.writeInt32BE(cursor, headstart + 36)
                     for (let i = 0; i < node.collision.vert_strips.length; i++) {
                         cursor = buf.writeInt32BE(node.collision.vert_strips[i], cursor)
-                    }
-                    if (node.whitespace.vert_strips) {
-                        cursor += node.whitespace.vert_strips //sometimes whitespace
+
                     }
                 }
                 if (node.collision.vert_buffer) {
+
                     buf.writeInt32BE(cursor, headstart + 44)
                     for (let i = 0; i < node.collision.vertex_count; i++) {
                         for (let j = 0; j < Object.values(node.collision.vert_buffer[i]).length; j++) {
@@ -332,6 +337,7 @@ Promise.all(replacements).then(replacements => {
                                     write = write * (rep.extension == 'Trak' ? zStretch : 1) + (rep.extension == 'Trak' ? zOffset : 0) + slope * Object.values(node.collision.vert_buffer[i])[1]
                                 }
                                 cursor = buf.writeInt16BE(Math.min(rep.extension == 'Trak' ? write : Object.values(node.collision.vert_buffer[i])[j]), cursor)
+
                             }
                             const coordMap = {
                                 0: "x",
@@ -343,9 +349,6 @@ Promise.all(replacements).then(replacements => {
                     }
                     if (node.collision.vertex_count % 2 == 1 && index !== 114) {
                         cursor += 2
-                    }
-                    if (node.whitespace.collision_vert_buffer) {
-                        cursor += node.whitespace.collision_vert_buffer
                     }
                 }
 
@@ -369,6 +372,7 @@ Promise.all(replacements).then(replacements => {
 
                         buf.writeInt32BE(cursor, headstart)
                         cursor = buf.writeInt32BE(node.visuals.material.format, cursor) //node.visuals.material.format
+
                         //0000001   1   254 1 = lightmap
                         //0000010   2   253 no apparent changes
                         //0000100   4   251 
@@ -389,10 +393,12 @@ Promise.all(replacements).then(replacements => {
                         //0011111
                         //1010111
                         cursor += 4
+
                         if (node.visuals.material.texture_data) {
                             highlight(cursor) //node.visuals.material.texture_data
                         }
                         cursor += 4
+
                         if (node.visuals.material.unk_data) {
                             highlight(cursor) //node.visuals.material.unk_data
                         }
@@ -440,17 +446,22 @@ Promise.all(replacements).then(replacements => {
                                 cursor = buf.writeInt16BE(node.visuals.material.texture_data.format, cursor)
                                 cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk4, cursor) //(node.visuals.material.texture_data.unk4
 
+
                                 cursor = buf.writeInt16BE(replaceWidth(node.visuals.material.texture_data.width, ti), cursor)
                                 cursor = buf.writeInt16BE(replaceHeight(node.visuals.material.texture_data.height, ti), cursor)
+
                                 cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk5, cursor) //node.visuals.material.texture_data.unk5
                                 cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk6, cursor) //node.visuals.material.texture_data.unk6
                                 cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk7, cursor) //node.visuals.material.texture_data.unk7
                                 cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk8, cursor) //node.visuals.material.texture_data.unk8
+
                                 let unk_pointer_start = cursor
                                 cursor += 28
                                 highlight(cursor)
                                 cursor = buf.writeInt16BE(2560, cursor) //node.visuals.material.texture_data.unk9 game breaking
+
                                 cursor = buf.writeInt16BE(node.visuals.material.texture_data.tex_index, cursor)
+
                                 cursor += 4
 
                                 for (let p = 0; p < node.visuals.material.texture_data.unk_pointers.length; p++) {
@@ -461,6 +472,7 @@ Promise.all(replacements).then(replacements => {
                                     cursor = buf.writeInt32BE(node.visuals.material.texture_data.unk_pointers[p].unk2, cursor)
                                     cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk_pointers[p].unk3, cursor) //replaceWidth(node.visuals.material.texture_data.unk_pointers[p].unk3, ti, true, true)
                                     cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk_pointers[p].unk4, cursor) //replaceHeight(node.visuals.material.texture_data.unk_pointers[p].unk4, ti, true, true)
+
                                 }
 
                             } else {
@@ -499,9 +511,6 @@ Promise.all(replacements).then(replacements => {
                             cursor = buf.writeInt16BE(node.visuals.material.unk_data.unk21, cursor)
                             cursor = buf.writeInt16BE(node.visuals.material.unk_data.unk22, cursor)
                             cursor = buf.writeInt16BE(node.visuals.material.unk_data.unk23, cursor)
-                            if (node.visuals.material && node.whitespace.visuals_material) {
-                                cursor += node.whitespace.visuals_material //sometimes whitespace
-                            }
                         }
                     } else {
                         buf.writeInt32BE(rep.materials[node.visuals.material.offset].address, headstart)
@@ -510,8 +519,10 @@ Promise.all(replacements).then(replacements => {
 
                 let bufferpointers = {}
                 if (node.visuals.index_buffer) {
+                    if (cursor % 8 !== 0) {
+                        cursor += 4
+                    }
                     buf.writeInt32BE(cursor, headstart + 48)
-
                     for (let j = 0; j < node.visuals.index_buffer.length; j++) {
                         cursor = buf.writeUInt8(node.visuals.index_buffer[j].type, cursor)
                         if (node.visuals.index_buffer[j].type == 1) {
@@ -520,7 +531,9 @@ Promise.all(replacements).then(replacements => {
                             cursor = buf.writeUInt8(node.visuals.index_buffer[j].unk3, cursor)
                             bufferpointers[node.visuals.index_buffer[j].start] = cursor
                             highlight(cursor)
+
                             cursor += 4
+
                         } else if (node.visuals.index_buffer[j].type == 3) {
                             cursor += 6
                             cursor = buf.writeUInt8(node.visuals.index_buffer[j].unk, cursor)
@@ -543,6 +556,7 @@ Promise.all(replacements).then(replacements => {
                     cursor += 7
                 }
                 if (node.visuals.vert_buffer) {
+
                     buf.writeInt32BE(cursor, headstart + 52)
                     for (let i = 0; i < node.visuals.vert_buffer.length; i++) {
                         if (bufferpointers[i]) {
@@ -560,58 +574,57 @@ Promise.all(replacements).then(replacements => {
                         cursor = buf.writeInt16BE(Math.min(!skybox ? y : node.visuals.vert_buffer[i].y), cursor)
                         cursor = buf.writeInt16BE(Math.min(!skybox ? z : node.visuals.vert_buffer[i].z), cursor)
 
+
                         adjustBB('x', x, bb)
                         adjustBB('y', y, bb)
                         adjustBB('z', z, bb)
-                        let fixed_32x32 = [49, 58, 99, 924, 966, 991, 992, 1000, 1048, 1064]
-                        let fixed_32x16 = [972]
-                        let fixed_64x16 = [1014]
-                        let ti = node.visuals.material.texture_data.tex_index
+
                         cursor += 2
                         cursor = buf.writeInt16BE(node.visuals.vert_buffer[i].uv_x, cursor)
                         cursor = buf.writeInt16BE(node.visuals.vert_buffer[i].uv_y, cursor) //(fixed_32x32.includes(ti) ? .5 : 1) * 
 
-                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[0], cursor)
-                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[1], cursor)
-                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[2], cursor)
-                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[3], cursor)
+                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[0], cursor) //node.visuals.vert_buffer[i].v_color[0]
+                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[1], cursor) //node.visuals.vert_buffer[i].v_color[1]
+                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[2], cursor) //node.visuals.vert_buffer[i].v_color[2],
+                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[3], cursor) //node.visuals.vert_buffer[i].v_color[3],
+
                     }
                 }
 
                 //  COLLISION DATA
 
+                //if (false && (node.collision.data || ([145].includes(index) && node.collision && node.collision.vertex_count))) {
                 if (node.collision.data) {
                     buf.writeInt32BE(cursor, headstart + 4)
-                    cursor = buf.writeInt16BE(node.collision.data.unk, cursor)
-                    cursor = buf.writeUInt8(node.collision.data.fog.flag, cursor)
-                    cursor = buf.writeUInt8(node.collision.data.fog.r, cursor)
-                    cursor = buf.writeUInt8(node.collision.data.fog.g, cursor)
-                    cursor = buf.writeUInt8(node.collision.data.fog.b, cursor)
-                    cursor = buf.writeInt16BE(node.collision.data.fog.start, cursor)
-                    cursor = buf.writeInt16BE(node.collision.data.fog.end, cursor) //
-                    cursor = buf.writeInt16BE(node.collision.data.lights.flag, cursor)
-                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_r, cursor)
-                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_g, cursor)
-                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_b, cursor)
-                    cursor = buf.writeUInt8(node.collision.data.lights.r, cursor)
-                    cursor = buf.writeUInt8(node.collision.data.lights.g, cursor)
-                    cursor = buf.writeUInt8(node.collision.data.lights.b, cursor)
-                    cursor = buf.writeUInt8(node.collision.data.lights.unk1, cursor)
-                    cursor = buf.writeUInt8(node.collision.data.lights.unk2, cursor)
-                    cursor = buf.writeFloatBE(node.collision.data.lights.x, cursor)
-                    cursor = buf.writeFloatBE(node.collision.data.lights.y, cursor)
-                    cursor = buf.writeFloatBE(node.collision.data.lights.z, cursor)
-                    cursor = buf.writeFloatBE(node.collision.data.lights.unk3, cursor)
-                    cursor = buf.writeFloatBE(node.collision.data.lights.unk4, cursor)
-                    cursor = buf.writeFloatBE(node.collision.data.lights.unk5, cursor)
-                    cursor = buf.writeInt32BE(node.collision.data.flags, cursor)
-                    cursor = buf.writeInt32BE(node.collision.data.unk2, cursor)
-                    cursor = buf.writeInt32BE(node.collision.data.unload, cursor)
-                    cursor = buf.writeInt32BE(node.collision.data.load, cursor)
+                    cursor = buf.writeInt16BE(node.collision.data.unk, cursor) //node.collision.data.unk
+                    cursor = buf.writeUInt8(node.collision.data.fog.flag, cursor) //node.collision.data.fog.flag
+                    cursor = buf.writeUInt8(node.collision.data.fog.r, cursor) //node.collision.data.fog.r
+                    cursor = buf.writeUInt8(node.collision.data.fog.g, cursor) //node.collision.data.fog.g
+                    cursor = buf.writeUInt8(node.collision.data.fog.b, cursor) //node.collision.data.fog.b
+                    cursor = buf.writeInt16BE(node.collision.data.fog.start, cursor) //node.collision.data.fog.start
+                    cursor = buf.writeInt16BE(node.collision.data.fog.end, cursor) //node.collision.data.fog.end
+                    cursor = buf.writeInt16BE(node.collision.data.lights.flag, cursor) //node.collision.data.lights.flag
+                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_r, cursor) //node.collision.data.lights.ambient_r
+                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_g, cursor) //node.collision.data.lights.ambient_g
+                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_b, cursor) //node.collision.data.lights.ambient_b
+                    cursor = buf.writeUInt8(node.collision.data.lights.r, cursor) //node.collision.data.lights.r
+                    cursor = buf.writeUInt8(node.collision.data.lights.g, cursor) //node.collision.data.lights.g
+                    cursor = buf.writeUInt8(node.collision.data.lights.b, cursor) //node.collision.data.lights.b
+                    cursor = buf.writeUInt8(node.collision.data.lights.unk1, cursor) //node.collision.data.lights.unk1
+                    cursor = buf.writeUInt8(node.collision.data.lights.unk2, cursor) //node.collision.data.lights.unk2
+                    cursor = buf.writeFloatBE(node.collision.data.lights.x, cursor) //node.collision.data.lights.x
+                    cursor = buf.writeFloatBE(node.collision.data.lights.y, cursor) //node.collision.data.lights.y
+                    cursor = buf.writeFloatBE(node.collision.data.lights.z, cursor) //node.collision.data.lights.z
+                    cursor = buf.writeFloatBE(node.collision.data.lights.unk3, cursor) //node.collision.data.lights.unk3
+                    cursor = buf.writeFloatBE(node.collision.data.lights.unk4, cursor) //node.collision.data.lights.unk4
+                    cursor = buf.writeFloatBE(node.collision.data.lights.unk5, cursor) //node.collision.data.lights.unk5
+                    cursor = buf.writeInt32BE(node.collision.data.flags, cursor) //node.collision.data.flags
+                    cursor = buf.writeInt32BE(node.collision.data.unk2, cursor) //node.collision.data.unk2
+                    cursor = buf.writeInt32BE(node.collision.data.unload, cursor) //node.collision.data.unload
+                    cursor = buf.writeInt32BE(node.collision.data.load, cursor)//node.collision.data.load
 
                     //      TRIGGERS
-
-                    if (node.collision.data.triggers.length) {
+                    if (node.collision.data?.triggers?.length) {
                         for (let t = 0; t < node.collision.data.triggers.length; t++) {
                             //write pointer to next trigger
                             highlight(cursor)
@@ -720,6 +733,7 @@ Promise.all(replacements).then(replacements => {
         //write animations
         if (rep.header.anim) {
             for (let a = 0; a < rep.header.anim.length; a++) {
+
                 buf.writeInt32BE(cursor, (animlist + a * 4))
                 cursor += 61 * 4
                 cursor = buf.writeFloatBE(rep.header.anim[a].float1, cursor)
@@ -842,6 +856,7 @@ Promise.all(replacements).then(replacements => {
         buf = buf.subarray(0, cursor)
         hl = hl.subarray(0, Math.ceil(cursor / (32 * 4)) * 4)
         models.push(buf)
+
         highlights.push(hl)
     }
 
@@ -936,3 +951,4 @@ Promise.all(replacements).then(replacements => {
 
 
 })
+
