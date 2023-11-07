@@ -7,13 +7,13 @@ async function getReplacements() {
     for (r = 0; r < 1648; r++) {
         console.log(r)
         let replacement = { index: r }
-         if (fs.existsSync('rep/' + r + '.png')) { 
+        if (fs.existsSync('rep/' + r + '.png')) {
             console.log("found " + r + " replacement")
-            await Jimp.read('rep/' + r+ '.png').then(image => {
+            await Jimp.read('rep/' + r + '.png').then(image => {
                 console.log('r', r)
-                replacement.width = texdata[r].width
-                replacement.height = texdata[r].height
-                replacement.format = texdata[r].format
+                replacement.width = texdata[r].width * 2
+                replacement.height = texdata[r].height * 2
+                replacement.format = texdata[r].format == 512 ? 513 : texdata[r].format
                 replacement.palette_offset = 0
                 replacement.palette = []
                 replacement.pages = 1
@@ -65,7 +65,7 @@ getReplacements().then(async function (replacements) {
     let total = Object.keys(replacements).length
 
     let cursor = 0
-    let file = Buffer.alloc(3000000)
+    let file = Buffer.alloc(76000000)
 
     file.writeInt32BE(total, cursor) //write total number of textures
     cursor += total * 8 + 8
