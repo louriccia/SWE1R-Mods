@@ -4,7 +4,7 @@ out_modelblock.bin is an archive containing 323 3D models and can be found in `S
 The goal of this documentation is to give a comprehensive understanding of how out_modelblock.bin is structured and how its contents can be modified.
 
 # Header
-out_modelblock.bin's header contains the number of models followed by a pair of offsets for every model. 'Offset' refers to the number of bytes relative to the start of out_modelblock.bin. The first of each pair of offsets for each model points to a 'map' in which each bit represents 4 bytes in the following model. If the bit is 1, that corresponding UInt32 is to be read as an offset. The second of each pair of offsets points to the actual model data.  After the entire list of offsets is a final offset that points to the end of out_modelblock.bin.
+out_modelblock.bin's header contains the number of models followed by a pair of offsets for every model. In this case, 'offset' refers to the number of bytes relative to the start of out_modelblock.bin. The first of each pair of offsets for each model points to a 'map' in which each bit represents 4 bytes in the following model. If the bit is 1, that corresponding UInt32 is to be read as an offset. The second of each pair of offsets points to the actual model data.  After a pair of offsets is given for every model, a final offset points to the end of out_modelblock.bin.
 
 | offset | type   | value     | description                                        |
 | ------ | ------ | --------- | -------------------------------------------------- |
@@ -24,35 +24,41 @@ out_modelblock.bin's header contains the number of models followed by a pair of 
 | ...    |        |           |                                                    |
 
 # Model
-*The word 'offset' now refers to the number of bytes relative to the start of a given model in out_modelblock.bin.*
+Going forward, we'll use the following terms to distinguish between the two kinds of offsets:</br>
+*Global offset* - the number of bytes relative to out_modelblock.bin</br>
+*Local offset* - the number of bytes relative to the start of a given model in out_modelblock.bin
+
+There are only 647 global offsets (all given in the header), but many many local offsets within each model - each one indicating the start of a parent, or node, or collision data, or vertex data, etc.
+
+### A Terrible Analogy
+You can think of out_modelblock.bin or any of the game's .bin files as textbooks. Each textbook starts with a table of contents (the header) that tells you the page number (global offset) where each chapter (model) can be found. Within each chapter, there is sort of a mini table of contents that shows where sections of the chapter can be found, only instead of giving the page number, it gives the number of pages from the start of the chapter (local offset). Whenever a page number is given within a chapter, it gives it in this format and give page numbers from other chapters. 
 
 ## Offset Map
-Every model in out_modelblock.bin is preceded by an offset map that points out values in the model data that should be parsed as an offset. 
+Every model in out_modelblock.bin is preceded by a bit string that points out 4-byte values in the model data that should be parsed as an offset. 
 
-For example, the first model in out_modelblock.bin has an offset map that begins like this at 0xA20:
+For example, the first model in out_modelblock.bin has an offset map that begins like this at global offset 0xA20:
 | local offset | hex  | binary   |
 | ------------ | ---- | -------- |
-| 0x0          | 0x7F | 01111111 |
+| 0x0          | 0x7F | **01111111** |
 | 0x1          | 0xFF | 11111111 |
 | 0x2          | 0xFF | 11111111 |
 | 0x3          | 0xFF | 11111111 |
 | ...          |
 
-These bits can be mapped to the start of the actual model data at 0xD1C to reveal values that are to be read as offsets:
+These bits can be mapped to the start of the actual model data at global offset 0xD1C to reveal values that are to be read as offsets:
 | local offset | hex value  | description                | offset map bit |
 | ------------ | ---------- | -------------------------- | -------------- |
-| 0x0          | 0x4D416C74 | "MAlt", the file extension | 0              |
-| 0x4          | 0x0        | a null offset              | 1              |
-| 0x8          | 0x0        | a null offset              | 1              |
-| 0xC          | 0x0        | a null offset              | 1              |
-| 0x10         | 0x0        | a null offset              | 1              |
-| 0x14         | 0x0        | a null offset              | 1              |
-| 0x18         | 0x0        | a null offset              | 1              |
-| 0x1C         | 0x0        | a null offset              | 1              |
-| 0x20         | 0x0        | a null offset              | 1              |
+| 0x0          | 0x4D416C74 | "MAlt", the file extension | **0**             |
+| 0x4          | 0x0        | a null offset              | **1**             |
+| 0x8          | 0x0        | a null offset              | **1**             |
+| 0xC          | 0x0        | a null offset              | **1**              |
+| 0x10         | 0x0        | a null offset              | **1**              |
+| 0x14         | 0x0        | a null offset              | **1**              |
+| 0x18         | 0x0        | a null offset              | **1**              |
+| 0x1C         | 0x0        | a null offset              | **1**              |
 | ...          |
 
-Wow, that's a lot of blank pointers! Yes, it seems even null offsets must still be flagged by the offset map.
+Notice that the first set of 4 bytes, the extension, is marked with a 0 to indiciate it is not an offset. The following 7 UInt32's are all marked with 1's to indicate they are offsets. Even though they are all null offsets, it seems the function reponsible for parsing the model data still expects these null offsets to be flagged. 
 
 ## Model Types
 There are 7 extensions that indicate the context for which a model should be used.
