@@ -28,6 +28,14 @@ for (r = 0; r < 323; r++) {
     }
 }
 
+let headers = {}
+function headerGatherer(extension, index, header) {
+    if (!headers[extension]) {
+        headers[extension] = {}
+    }
+    headers[extension][index] = header
+}
+
 //some basic parameters for modifying track mesh/collision
 const slope = 0
 const xStretch = 1
@@ -70,6 +78,7 @@ Promise.all(replacements).then(replacements => {
         let childkeeper = []
         let triggerkeeper = []
         let animlist = null
+        let header = []
         let skyboxid = rep.header.head[2]
         function writeNode(node, start, id, parent, skybox) {
             if (Number(id) == Number(skyboxid)) {
@@ -436,7 +445,13 @@ Promise.all(replacements).then(replacements => {
                                 highlight(cursor)
                                 cursor = buf.writeInt16BE(2560, cursor) //node.visuals.material.texture_data.unk9 game breaking
 
-                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.tex_index, cursor) //node.visuals.material.texture_data.tex_index
+                                if ([107, 108, 109, 110, 111, 112, 113, 114, 115].includes(node.visuals.material.texture_data.tex_index) && [2].includes(index)) {
+                                    console.log('found a engine texture at', id)
+                                    cursor = buf.writeInt16BE(75, cursor) //node.visuals.material.texture_data.tex_index
+
+                                } else {
+                                    cursor = buf.writeInt16BE(node.visuals.material.texture_data.tex_index, cursor) //node.visuals.material.texture_data.tex_index
+                                }
 
                                 cursor += 4
 
@@ -656,41 +671,47 @@ Promise.all(replacements).then(replacements => {
             return cursor
         }
         cursor += buf.write(rep.extension, cursor)
-        console.log(rep.extension, rep.header.head.length * 4)
+        header.push(rep.extension)
+        //console.log(rep.extension, rep.header.head.length * 4)
         for (let i = 0; i < rep.header.head.length; i++) {
             if (rep.header.head[i] !== 0) {
                 headkeeper.push({ original: rep.header.head[i], address: cursor })
             }
             highlight(cursor)
             cursor = buf.writeInt32BE(rep.header.head[i], cursor)
+            header.push(rep.header.head[i])
             if (i == rep.header.head.length - 1) {
                 cursor = buf.writeInt32BE(-1, cursor)
+                header.push(-1)
             }
         }
 
         //add lightstreaks
         if (rep.header?.data?.lightstreaks) {
-            console.log('Data')
             cursor += buf.write("Data", cursor)
+            header.push("Data")
             cursor = buf.writeInt32BE(rep.header.data.lightstreaks.length * 4, cursor)
+            header.push(rep.header.data.lightstreaks.length * 4)
             for (let i = 0; i < rep.header.data.lightstreaks.length; i++) {
                 cursor += buf.write("LStr", cursor)
                 cursor = buf.writeFloatBE(rep.header.data.lightstreaks[i][0] * xStretch + xOffset, cursor)
                 cursor = buf.writeFloatBE(rep.header.data.lightstreaks[i][1] * yStretch + yOffset, cursor)
                 cursor = buf.writeFloatBE(rep.header.data.lightstreaks[i][2] * zStretch + zOffset + rep.header.data.lightstreaks[i][1] * slope, cursor)
+                header.push("LStr", ...rep.header.data.lightstreaks[i])
             }
         }
 
         //collect animations
         if (rep.header.anim) {
-            console.log('Anim')
             cursor += buf.write("Anim", cursor)
+            header.push("Anim")
             animlist = cursor //save start of anim list
             for (let i = 0; i < rep.header.anim.length; i++) {
-                //animkeeper.push({ original: rep.header.anim[i], address: cursor }) //why am I doing this here
                 highlight(cursor)
+                header.push(0)
                 cursor += 4
             }
+            header.push(0)
             highlight(cursor)
             cursor += 4
         }
@@ -698,18 +719,21 @@ Promise.all(replacements).then(replacements => {
         //AltN
 
         if (rep.header.altn) {
-            console.log('AltN')
             cursor += buf.write('AltN', cursor)
+            header.push("AltN")
             for (let i = 0; i < rep.header.altn.length; i++) {
                 altnkeeper.push({ original: rep.header.altn[i], address: cursor })
+                header.push(rep.header.altn[i])
                 highlight(cursor)
                 cursor += 4
             }
             highlight(cursor)
+            header.push(0)
             cursor += 4
         }
         cursor += buf.write('HEnd', cursor)
-
+        header.push("HEnd")
+        headerGatherer(rep.extension, index, header)
         //this loop writes all of the model data recursively
         for (let d = 0; d < Object.keys(rep.data).length; d++) {
             cursor = writeNode(Object.values(rep.data)[d], cursor, Object.keys(rep.data)[d], false)
@@ -882,8 +906,11 @@ Promise.all(replacements).then(replacements => {
 
     let mb = Buffer.concat(modelblock)
 
-    fs.writeFileSync('out/out_modelblock.bin', mb);
+    fs.writeFileSync('C:/Program Files (x86)/Steam/steamapps/common/Star Wars Episode I Racer/data/lev01/out_modelblock.bin', mb);
 
+    Object.keys(headers).forEach(key => {
+        fs.writeFileSync(`headers_${key}.csv`, Object.keys(headers[key]).map(k => `${k}, ${headers[key][k].join(", ")}`).join("\n"));
+    })
 
     if (splineblock) {
         let splineblock_new = Buffer.alloc(700000)

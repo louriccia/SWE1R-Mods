@@ -30,85 +30,280 @@ Going forward, we'll use the following terms to distinguish between the two kind
 
 There are only 647 global offsets (all given in the header), but many many local offsets within each model - each one indicating the start of a parent, or node, or collision data, or vertex data, etc.
 
-### A Terrible Analogy
-You can think of out_modelblock.bin or any of the game's .bin files as textbooks. Each textbook starts with a table of contents (the header) that tells you the page number (global offset) where each chapter (model) can be found. Within each chapter, there is sort of a mini table of contents that shows where sections of the chapter can be found, only instead of giving the page number, it gives the number of pages from the start of the chapter (local offset). Whenever a page number is given within a chapter, it gives it in this format and give page numbers from other chapters. 
-
 ## Offset Map
 Every model in out_modelblock.bin is preceded by a bit string that points out 4-byte values in the model data that should be parsed as an offset. 
 
 For example, the first model in out_modelblock.bin has an offset map that begins like this at global offset 0xA20:
-| local offset | hex  | binary   |
-| ------------ | ---- | -------- |
+| local offset | hex  | binary       |
+| ------------ | ---- | ------------ |
 | 0x0          | 0x7F | **01111111** |
-| 0x1          | 0xFF | 11111111 |
-| 0x2          | 0xFF | 11111111 |
-| 0x3          | 0xFF | 11111111 |
+| 0x1          | 0xFF | 11111111     |
+| 0x2          | 0xFF | 11111111     |
+| 0x3          | 0xFF | 11111111     |
 | ...          |
 
 These bits can be mapped to the start of the actual model data at global offset 0xD1C to reveal values that are to be read as offsets:
 | local offset | hex value  | description                | offset map bit |
 | ------------ | ---------- | -------------------------- | -------------- |
-| 0x0          | 0x4D416C74 | "MAlt", the file extension | **0**             |
-| 0x4          | 0x0        | a null offset              | **1**             |
-| 0x8          | 0x0        | a null offset              | **1**             |
-| 0xC          | 0x0        | a null offset              | **1**              |
-| 0x10         | 0x0        | a null offset              | **1**              |
-| 0x14         | 0x0        | a null offset              | **1**              |
-| 0x18         | 0x0        | a null offset              | **1**              |
-| 0x1C         | 0x0        | a null offset              | **1**              |
+| 0x0          | 0x4D416C74 | "MAlt", the file extension | **0**          |
+| 0x4          | 0x0        | a null offset              | **1**          |
+| 0x8          | 0x0        | a null offset              | **1**          |
+| 0xC          | 0x0        | a null offset              | **1**          |
+| 0x10         | 0x0        | a null offset              | **1**          |
+| 0x14         | 0x0        | a null offset              | **1**          |
+| 0x18         | 0x0        | a null offset              | **1**          |
+| 0x1C         | 0x0        | a null offset              | **1**          |
 | ...          |
 
 Notice that the first set of 4 bytes, the extension, is marked with a 0 to indiciate it is not an offset. The following 7 UInt32's are all marked with 1's to indicate they are offsets. Even though they are all null offsets, it seems the function reponsible for parsing the model data still expects these null offsets to be flagged. 
 
 ## Model Types
-There are 7 extensions that indicate the context for which a model should be used.
+There are 7 extensions that indicate the context for which a model should be used. The extension is always given at the very start of the model structure.
 
-| extension | header size (bytes) | description                                                      |
-| --------- | ------------------- | ---------------------------------------------------------------- |
-| MAlt      | 300                 | high poly pods for the player character                          |
-| Modl      | 4                   | various one-off animated elements                                |
-| Part      | 20                  | non-animated elements                                            |
-| Podd      | 300                 | mid/low poly pod models, flap animations, how many engines, etc. |
-| Pupp      | 36                  | animated characters, each with a similar set of animations       |
-| Scen      | 332                 | animated scenes; (possibly unused in pc version)                 |
-| Trak      | 24                  | tracks                                                           |
-
-
+| extension | header size (bytes) | count of models | description                                                      |
+| --------- | ------------------- | --------------- | ---------------------------------------------------------------- |
+| MAlt      | 300                 | 24              | high poly pods for the player character                          |
+| Modl      | 4                   | 9               | various one-off animated elements                                |
+| Part      | 8 - 20              | 183             | non-animated elements                                            |
+| Podd      | 300                 | 26              | mid/low poly pod models, flap animations, how many engines, etc. |
+| Pupp      | 36                  | 38              | animated characters, each with a similar set of animations       |
+| Scen      | 332                 | 18              | animated scenes; (possibly unused in pc version)                 |
+| Trak      | 24                  | 25              | tracks                                                           |
 
 ## Model Header
-All model headers start with a 4-character string extension (as shown in the previous section) followed by a series of offsets. Depending on the extension, the header may also include a section labeled "Data", "Anim", or "AltN". "HEnd" indicates the end of the header.
+All model headers start with a 4-character string extension (as shown in the previous section) followed by a series of offsets that end with -1. The header may contain additional sections marked as "Data", "Anim" or "AltN". "HEnd" marks the end of the header. 
+
+| Header Structure                                          |
+| --------------------------------------------------------- |
+| 4-byte string containing the file extension               |
+| an array of offsets in an order specific to the extension |
+| -1 / 0xFFFFFFFF to mark the end of the base header        |
+| Data, Anim, and/or AltN sections                          |
+| "HEnd" to mark end of header                              |
+
+### Header Sections
+Depending on the extension, the header may also include a section that starts with a 4-byte string that reads "Data", "Anim", or "AltN".
+
+#### Data
+"Data" is a section that only occurs in Trak files. This section stores coordinates for light flares that appear on some tracks. It is structured in the following pattern, with a 32-byte block per light:
+
+| type   | description                  |
+| ------ | ---------------------------- |
+| String | "Data"                       |
+| UInt32 | The number of lights * 4     |
+| String | "LStr"                       |
+| Vec3   | First light xyz coordinates  |
+| String | "LStr"                       |
+| Vec3   | Second light xyz coordinates |
+| String | "LStr"                       |
+| ...    | and so on                    |
+
+#### Anim
+"Anim" contains a list of offsets to sets of animation data and can be found in just about every model type. This animation data typically is added at the very end of a model. The animation offset list is always terminated with a null offset.
+
+| type   | description                     |
+| ------ | ------------------------------- |
+| String | "Anim"                          |
+| UInt32 | offset of first animation       |
+| UInt32 | offset of second animation      |
+| UInt32 | offset of third animation       |
+| ...    |                                 |
+| UInt32 | null offset to mark end of Anim |
+
+#### AltN
+"AltN" is a section that contains only offsets to a few nodes and appears in every MAlt and Podd file. Files that don't have this section in its header and will have a connected node tree. That is to say that each node in a model is a child or parent of another node. However, in models that have an "AltN" section in their header, this is not always the case. These models may have multiple node trees that are not connected to each other as parents or children in any way. The purpose of this section is not entirely understood, but its tag may stand for "Alternate Numbering" or "Alternate Node".
+
+| type   | description                     |
+| ------ | ------------------------------- |
+| String | "AltN"                          |
+| UInt32 | first node offset               |
+| UInt32 | second node offset              |
+| UInt32 | third node offset               |
+| ...    |                                 |
+| UInt32 | null offset to mark end of AltN |
 
 ### MAlt / Podd
-Notice that MAlt and Podd both have the same header size (300). They combine to inform the game what parts of models to use to construct and animate the pod. This combined header covers all possible pod components and configurations including quad-engine pods like Ben Quadinaros, and cableless pods like Neva Kee. 
+Notice that MAlt and Podd both have the same header size (300). They combine to inform the game what parts of models to use to construct and animate the pod. This combined header covers all possible pod components and configurations including quad-engine pods like Ben Quadinaros and cableless pods like Neva Kee. 
 
-- MAlt and Podd will also have a AltN tag in their header.
-- A few Podd files have Anim sections
-- The MAlt files for Anakin Skywalker and Teemto Pagalies do not have high poly engines. The engines are likely packed in the exe but have not been located yet.
+- MAlt and Podd files will always have an AltN section in their header.
+- A few Podd files have Anim sections.
+- The MAlt files for Anakin Skywalker and Teemto Pagalies are missing their engines. These are instead located in their Podd files.
 
-
-**Header Table**
-| offset | type   | description |
-| ------ | ------ | ----------- |
-| 0      | String | MAlt / Podd |
-| 4      | UInt32 | main parent |
-| 8      | UInt32 | engine 1    |
-| 12     | UInt32 | engine 2    |
-| 16     | UInt32 | engine 3    |
-| 20     | UInt32 | engine 4    |
+**MALt / Podd Header Structure**</br>
+These values are a work in progress.
+| local offset | type   | value/description             |
+| ------------ | ------ | ----------------------------- |
+| 0x0          | String |
+| 0x4          | UInt32 | main parent                   |
+| 0x8          | UInt32 | engine 1                      |
+| 0xC          | UInt32 | engine 2                      |
+| 0x10         | UInt32 | engine 3                      |
+| 0x14         | UInt32 | engine 4                      |
+| 0x18         | UInt32 | cockpit                       |
+| 0x1C         | UInt32 | binder 1                      |
+| 0x20         | UInt32 | binder 1                      |
+| 0x24         | UInt32 | binder 2                      |
+| 0x28         | UInt32 | binder 2                      |
+| 0x2C         | UInt32 | cable 1                       |
+| 0x30         | UInt32 | cable 2                       |
+| 0x34         | UInt32 | cable 3                       |
+| 0x38         | UInt32 | cable 4                       |
+| 0x3C         | UInt32 |                               |
+| 0x40         | UInt32 |                               |
+| 0x44         | UInt32 |                               |
+| 0x48         | UInt32 |                               |
+| 0x4C         | UInt32 | engine 1 stuff                |
+| 0x50         | UInt32 | engine 1 stuff                |
+| 0x54         | UInt32 | engine 1 stuff                |
+| 0x58         | UInt32 | engine 1 stuff                |
+| 0x5C         | UInt32 | engine 1 stuff                |
+| 0x60         | UInt32 | engine 1 stuff                |
+| 0x64         | UInt32 | engine 1 stuff                |
+| 0x68         | UInt32 | engine 1 stuff                |
+| 0x6C         | UInt32 | engine 1 stuff                |
+| 0x70         | UInt32 | engine 1 stuff                |
+| 0x74         | UInt32 | engine 1 stuff                |
+| 0x78         | UInt32 | afterburner                   |
+| 0x7C         | UInt32 | engine 1 stuff                |
+| 0x80         | UInt32 | engine 1 stuff                |
+| 0x84         | UInt32 | engine 2 stuff                |
+| 0x88         | UInt32 | engine 2 stuff                |
+| 0x8C         | UInt32 | engine 2 stuff                |
+| 0x90         | UInt32 | engine 2 stuff                |
+| 0x94         | UInt32 | engine 2 stuff                |
+| 0x98         | UInt32 | engine 2 stuff                |
+| 0x9C         | UInt32 | engine 2 stuff                |
+| 0xA0         | UInt32 | engine 2 stuff                |
+| 0xA4         | UInt32 | engine 2 stuff                |
+| 0xA8         | UInt32 | engine 2 stuff                |
+| 0xAC         | UInt32 | engine 2 stuff                |
+| 0xB0         | UInt32 | engine 2 stuff                |
+| 0xB4         | UInt32 | engine 2 stuff                |
+| 0xB8         | UInt32 | engine 2 stuff                |
+| 0xBC         | UInt32 | left cockpit flap             |
+| 0xC0         | UInt32 | right cockpit flap            |
+| 0xC4         | UInt32 | empty                         |
+| 0xC8         | UInt32 | empty                         |
+| 0xCC         | UInt32 |
+| 0xD0         | UInt32 |
+| 0xD4         | UInt32 |
+| 0xD8         | UInt32 |
+| 0xDC         | UInt32 |
+| 0xE0         | UInt32 |
+| 0xE4         | UInt32 |
+| 0xE8         | UInt32 |
+| 0xEC         | UInt32 |
+| 0xF0         | UInt32 | pilot                         |
+| 0xF4         | UInt32 |
+| 0xF8         | UInt32 |
+| 0xFC         | UInt32 | right engine shadow           |
+| 0x100        | UInt32 | left engine shadow            |
+| 0x104        | UInt32 | cockpit shadow                |
+| 0x108        | UInt32 |
+| 0x10C        | UInt32 |
+| 0x110        | UInt32 |
+| 0x114        | UInt32 |
+| 0x118        | UInt32 |
+| 0x11C        | UInt32 |
+| 0x120        | UInt32 |
+| 0x124        | UInt32 |
+| 0x128        | UInt32 |
+| 0x12C        | UInt32 | low lod                       |
+| 0x130        | Int32  | -1 to mark end of base header |
 
 ### Modl
-Features "Anim"
-### Part
-### Pupp
-Features "Anim"
-### Scen
-Features "Anim"
-### Trak
-Features "Data" and "Anim"
+Modl files contain 1 offset, which points to its main parent node. Some Modl files feature "Anim" sections.
 
-## Node
+| local offset | type   | value/description             |
+| ------------ | ------ | ----------------------------- |
+| 0x0          | String | "Modl"                        |
+| 0x4          | UInt32 | main node parent              |
+| 0x8          | Int32  | -1 to mark end of base header |
+
+### Part
+Part files have 2 kinds of headers. The first header has 2 offsets and is used for all the Part files for low LOD pods:
+
+| local offset | type   | value/description             |
+| ------------ | ------ | ----------------------------- |
+| 0x0          | String | "Part"                        |
+| 0x4          | UInt32 | main node parent (empty)      |
+| 0x8          | UInt32 | main node parent              |
+| 0xC          | Int32  | -1 to mark end of base header |
+
+The second kind of header appears on all other Part files: 
+| local offset | type   | value/description             |
+| ------------ | ------ | ----------------------------- |
+| 0x0          | String | "Part"                        |
+| 0x4          | UInt32 | main node parent              |
+| 0x8          | UInt32 | null offset                   |
+| 0xC          | UInt32 | null offset                   |
+| 0x10         | UInt32 | null offset                   |
+| 0x14         | UInt32 | null offset                   |
+| 0x18         | Int32  | -1 to mark end of base header |
+
+### Pupp
+All Pupp models contain animations. Its header contains 9 offsets.
+
+| local offset | type   | value/description                                                 |
+| ------------ | ------ | ----------------------------------------------------------------- |
+| 0x0          | String | "Pupp"                                                            |
+| 0x4          | UInt32 | Used by all Pupp files                                            |
+| 0x8          | UInt32 | Used by all podracers, pit droid, watto, ronto, and holotable     |
+| 0xC          | UInt32 | same as previous except pit droid, ronto, jinn reeso and cy yunga |
+| 0x10         | UInt32 | used by some models                                               |
+| 0x14         | UInt32 | used by pit droid and holotable only                              |
+| 0x18         | UInt32 | used by holotable only                                            |
+| 0x1C         | UInt32 | always 0                                                          |
+| 0x20         | UInt32 | used by holotable only                                            |
+| 0x24         | UInt32 | used by holotable only                                            |
+
+### Scen
+All Scen models contain animations. Scen headeres have at least 83 offsets with one file (156) having 89 offsets. However, offsets after offset 76 are unused. 
+
+### Trak
+All Trak files feature at least an Anim or Data section with many containing both. Trak headers contain 6 offsets.
+
+| local offset | type   | value/description                                                |
+| ------------ | ------ | ---------------------------------------------------------------- |
+| 0x0          | String | "Trak"                                                           |
+| 0x4          | UInt32 | Main parent of track mesh                                        |
+| 0x8          | UInt32 | Main parent of track mesh (always same value as previous offset) |
+| 0xC          | UInt32 | Main parent of skybox mesh                                       |
+| 0x10         | UInt32 | First cutscene camera trackpoint*                                |
+| 0x14         | UInt32 | Second cutscene camera trackpoint*                               |
+| 0x18         | UInt32 | Third cutscene camera trackpoint*                                |
+
+*The camera track points are animated empties that determine where the camera is pointing during the opening in-game cutscenes that only exist on the console versions of the game. Every track has a unique opening in-game cutscene. For some reason, tracks that overlap with other tracks contain this camera tracking data for all overlapping tracks where each slot corresponds to the track's order in the tournament. For example, all Mon Gazza tracks have a camera tracking point for Mon Gazza Speedway, Spice Mine Run, and Zugga Challenge in that order. Malastare tracks stick to the order but leave the other offsets blank. Tracks that do not overlap, Inferno and Ando Prime Centrum, use the first slot.
+
+## Model Body
+It's finally time to start explaining the model data. 
+
+### Node Types
+
+### Parent Group
+
+### Mesh Group
+
+#### Visuals
+
+##### Material
+##### Vert Srips
+##### Group Parent
+##### Index Buffer
+##### Vertex Buffer
+##### Vertex Count
+
+#### Collision
+##### Collision Data
+##### Bounding Box
+##### Vertex Buffer (Collision)
+##### Vertex Count
+
+### Animations
 
 # Index
+The models are packed in out_modelblock.bin in the following order. While there is no obvious pattern, the order may have been determined by the creation date of each model with Anakin Skywalker and The Boonta Classic being made first and miscellaneous models at the end.
+
 | index | name                          | extension |
 | ----- | ----------------------------- | --------- |
 | 0     | Anakin Skywalker              | MAlt      |
