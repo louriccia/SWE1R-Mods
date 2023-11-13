@@ -19,7 +19,7 @@ For each block, there is an unpack and repack script. Unpack scripts dump the ga
 
 * [node js](https://nodejs.org/en)
 * [jimp](https://www.npmjs.com/package/jimp) package for working with images
-* bin files from `Star Wars Episode I Racer / data / lev01 /` must be coppied to their respective folders in tools. (`out_modelblock.bin` goes in `modelblock`, etc.)
+* bin files from `Star Wars Episode I Racer / data / lev01 /` must be copied to their respective folders in tools. (`out_modelblock.bin` goes in `modelblock`, etc.)
 
 ### How to use
 

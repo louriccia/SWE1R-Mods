@@ -304,6 +304,8 @@ It's finally time to start explaining the model data.
 # Index
 The models are packed in out_modelblock.bin in the following order. While there is no obvious pattern, the order may have been determined by the creation date of each model with Anakin Skywalker and The Boonta Classic being made first and miscellaneous models at the end.
 
+See also [OpenSWE1R's list](https://github.com/OpenSWE1R/openswe1r/wiki/List-of-Models)
+
 | index | name                          | extension |
 | ----- | ----------------------------- | --------- |
 | 0     | Anakin Skywalker              | MAlt      |
