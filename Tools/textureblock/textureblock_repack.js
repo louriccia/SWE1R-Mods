@@ -11,9 +11,9 @@ async function getReplacements() {
             console.log("found " + r + " replacement")
             await Jimp.read('rep/' + r + '.png').then(image => {
                 console.log('r', r)
-                replacement.width = texdata[r].width * 2
-                replacement.height = texdata[r].height * 2
-                replacement.format = texdata[r].format == 512 ? 513 : texdata[r].format
+                replacement.width = texdata[r].width
+                replacement.height = texdata[r].height
+                replacement.format = 3 //texdata[r].format
                 replacement.palette_offset = 0
                 replacement.palette = []
                 replacement.pages = 1
@@ -31,7 +31,7 @@ async function getReplacements() {
                                     pindex = index
                                 }
                             })
-                            if (pindex == null && ((replacement.format == 512 && replacement.palette.length < 16) || (replacement.format == 513 && replacement.palette.length < 255))) {
+                            if (pindex == null && ((replacement.format == 512 && replacement.palette.length < 16) || (replacement.format == 513 && replacement.palette.length < 256))) {
                                 replacement.palette.push(color)
                                 replacement.pixels.push(replacement.palette.length - 1)
                             } else {

@@ -85,7 +85,7 @@ All model headers start with a 4-character string extension (as shown in the pre
 Depending on the extension, the header may also include a section that starts with a 4-byte string that reads "Data", "Anim", or "AltN".
 
 #### Data
-"Data" is a section that only occurs in Trak files. This section stores coordinates for light flares that appear on some tracks. It is structured in the following pattern, with a 32-byte block per light:
+"Data" is a section that occurs in Trak and Scen files. For Trak files, this section stores coordinates for light flares that appear on some tracks. It is structured in the following pattern, with a 16-byte block per light:
 
 | type   | description                  |
 | ------ | ---------------------------- |
@@ -97,6 +97,19 @@ Depending on the extension, the header may also include a section that starts wi
 | Vec3   | Second light xyz coordinates |
 | String | "LStr"                       |
 | ...    | and so on                    |
+
+For Scen files, there is unknown data:
+| type   | description                  |
+| ------ | ---------------------------- |
+| String | "Data"                       |
+| UInt32 | The number of elements       |
+| UInt32 | "LStr"                       |
+| Vec3   | First light xyz coordinates  |
+| String | "LStr"                       |
+| Vec3   | Second light xyz coordinates |
+| String | "LStr"                       |
+| ...    | and so on                    |
+
 
 #### Anim
 "Anim" contains a list of offsets to sets of animation data and can be found in just about every model type. This animation data typically is added at the very end of a model. The animation offset list is always terminated with a null offset.

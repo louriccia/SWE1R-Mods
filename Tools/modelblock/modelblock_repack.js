@@ -428,7 +428,8 @@ Promise.all(replacements).then(replacements => {
                                 cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk1, cursor) //node.visuals.material.texture_data.unk1, ti, true, false) //strange stretching/bluring effect, also removes gliding texture animations
                                 cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk2, cursor) //replaceHeight(node.visuals.material.texture_data.unk2, ti, true, false)
                                 cursor = buf.writeInt32BE(node.visuals.material.texture_data.unk3, cursor) //node.visuals.material.texture_data.unk3
-                                cursor = buf.writeInt16BE(node.visuals.material.texture_data.format, cursor)
+
+                                cursor = buf.writeInt16BE((node.visuals.material.texture_data.tex_index > 1014 && node.visuals.material.texture_data.tex_index < 1039) ? 3 : node.visuals.material.texture_data.format, cursor)
                                 cursor = buf.writeInt16BE(node.visuals.material.texture_data.unk4, cursor) //(node.visuals.material.texture_data.unk4
 
 
@@ -558,14 +559,13 @@ Promise.all(replacements).then(replacements => {
                         let x = node.visuals.vert_buffer[i].x
                         let y = node.visuals.vert_buffer[i].y
                         let z = node.visuals.vert_buffer[i].z
-                        x = x * (rep.extension == 'Trak' ? xStretch : 1) + (rep.extension == 'Trak' ? xOffset : 0) //+ noiseMaker(node.visuals.vert_buffer[i].x, node.visuals.vert_buffer[i].y, node.visuals.vert_buffer[i].z, xNoise, rep.extension)
-                        y = y * (rep.extension == 'Trak' ? yStretch : 1) + (rep.extension == 'Trak' ? yOffset : 0) //+ noiseMaker(node.visuals.vert_buffer[i].x, node.visuals.vert_buffer[i].y, node.visuals.vert_buffer[i].z, yNoise, rep.extension)
-                        z = z * (rep.extension == 'Trak' ? zStretch : 1) + (rep.extension == 'Trak' ? zOffset : 0) + y * slope //+ noiseMaker(node.visuals.vert_buffer[i].x, node.visuals.vert_buffer[i].y, node.visuals.vert_buffer[i].z, zNoise, rep.extension) + y * slope
+                        x = x * (rep.extension == 'Trak' ? xStretch : 1) + (rep.extension == 'Trak' ? xOffset : 0)
+                        y = y * (rep.extension == 'Trak' ? yStretch : 1) + (rep.extension == 'Trak' ? yOffset : 0)
+                        z = z * (rep.extension == 'Trak' ? zStretch : 1) + (rep.extension == 'Trak' ? zOffset : 0) + y * slope
 
                         cursor = buf.writeInt16BE(Math.min(!skybox ? x : node.visuals.vert_buffer[i].x), cursor)
                         cursor = buf.writeInt16BE(Math.min(!skybox ? y : node.visuals.vert_buffer[i].y), cursor)
                         cursor = buf.writeInt16BE(Math.min(!skybox ? z : node.visuals.vert_buffer[i].z), cursor)
-
 
                         adjustBB('x', x, bb)
                         adjustBB('y', y, bb)
@@ -573,12 +573,12 @@ Promise.all(replacements).then(replacements => {
 
                         cursor += 2
                         cursor = buf.writeInt16BE(node.visuals.vert_buffer[i].uv_x, cursor)
-                        cursor = buf.writeInt16BE(node.visuals.vert_buffer[i].uv_y, cursor) //(fixed_32x32.includes(ti) ? .5 : 1) * 
+                        cursor = buf.writeInt16BE(node.visuals.vert_buffer[i].uv_y, cursor)
 
-                        cursor = buf.writeUInt8(rep.extension !== 'MAlt' ? 0 : node.visuals.vert_buffer[i].v_color[0], cursor) //node.visuals.vert_buffer[i].v_color[0]
-                        cursor = buf.writeUInt8(rep.extension !== 'MAlt' ? 0 : node.visuals.vert_buffer[i].v_color[1], cursor) //node.visuals.vert_buffer[i].v_color[1]
-                        cursor = buf.writeUInt8(rep.extension !== 'MAlt' ? 0 : node.visuals.vert_buffer[i].v_color[2], cursor) //node.visuals.vert_buffer[i].v_color[2],
-                        cursor = buf.writeUInt8(rep.extension !== 'MAlt' ? 0 : node.visuals.vert_buffer[i].v_color[3], cursor) //node.visuals.vert_buffer[i].v_color[3],
+                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[0], cursor)
+                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[1], cursor)
+                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[2], cursor)
+                        cursor = buf.writeUInt8(node.visuals.vert_buffer[i].v_color[3], cursor)
 
                     }
                 }
@@ -588,32 +588,32 @@ Promise.all(replacements).then(replacements => {
                 if (node.collision.data) { //|| node.collision.vertex_count
                     //if (node.collision.data) {
                     buf.writeInt32BE(cursor, headstart + 4)
-                    cursor = buf.writeInt16BE(2, cursor) //node.collision.data.unk
-                    cursor = buf.writeUInt8(15, cursor) //node.collision.data.fog.flag
-                    cursor = buf.writeUInt8(255, cursor) //node.collision.data.fog.r
-                    cursor = buf.writeUInt8(255, cursor) //node.collision.data.fog.g
-                    cursor = buf.writeUInt8(255, cursor) //node.collision.data.fog.b
-                    cursor = buf.writeInt16BE(2200, cursor) //node.collision.data.fog.start
-                    cursor = buf.writeInt16BE(4500, cursor) //node.collision.data.fog.end
-                    cursor = buf.writeInt16BE(7, cursor) //node.collision.data.lights.flag
-                    cursor = buf.writeUInt8(0, cursor) //node.collision.data.lights.ambient_r
-                    cursor = buf.writeUInt8(0, cursor) //node.collision.data.lights.ambient_g
-                    cursor = buf.writeUInt8(0, cursor) //node.collision.data.lights.ambient_b
-                    cursor = buf.writeUInt8(50, cursor) //node.collision.data.lights.r
-                    cursor = buf.writeUInt8(50, cursor) //node.collision.data.lights.g
-                    cursor = buf.writeUInt8(50, cursor) //node.collision.data.lights.b
-                    cursor = buf.writeUInt8(0, cursor) //node.collision.data.lights.unk1
-                    cursor = buf.writeUInt8(0, cursor) //node.collision.data.lights.unk2
-                    cursor = buf.writeFloatBE(0, cursor) //node.collision.data.lights.x
-                    cursor = buf.writeFloatBE(0, cursor) //node.collision.data.lights.y
-                    cursor = buf.writeFloatBE(0, cursor) //node.collision.data.lights.z
-                    cursor = buf.writeFloatBE(0, cursor) //node.collision.data.lights.unk3
-                    cursor = buf.writeFloatBE(0, cursor) //node.collision.data.lights.unk4
-                    cursor = buf.writeFloatBE(0, cursor) //node.collision.data.lights.unk5
-                    cursor = buf.writeInt32BE(node.collision?.data?.flags ?? 0, cursor) //node.collision.data.flags
-                    cursor = buf.writeInt32BE(22860, cursor) //node.collision.data.unk2
-                    cursor = buf.writeInt32BE(node.collision.data.unload ?? 0, cursor) //node.collision.data.unload
-                    cursor = buf.writeInt32BE(node.collision.data.load ?? 0, cursor)//node.collision.data.load
+                    cursor = buf.writeInt16BE(node.collision.data.unk, cursor) //node.collision.data.unk
+                    cursor = buf.writeUInt8(node.collision.data.fog.flag, cursor) //node.collision.data.fog.flag
+                    cursor = buf.writeUInt8(node.collision.data.fog.r, cursor) //node.collision.data.fog.r
+                    cursor = buf.writeUInt8(node.collision.data.fog.g, cursor) //node.collision.data.fog.g
+                    cursor = buf.writeUInt8(node.collision.data.fog.b, cursor) //node.collision.data.fog.b
+                    cursor = buf.writeInt16BE(node.collision.data.fog.start, cursor) //node.collision.data.fog.start
+                    cursor = buf.writeInt16BE(node.collision.data.fog.end, cursor) //node.collision.data.fog.end
+                    cursor = buf.writeInt16BE(node.collision.data.lights.flag, cursor) //node.collision.data.lights.flag
+                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_r, cursor) //node.collision.data.lights.ambient_r
+                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_g, cursor) //node.collision.data.lights.ambient_g
+                    cursor = buf.writeUInt8(node.collision.data.lights.ambient_b, cursor) //node.collision.data.lights.ambient_b
+                    cursor = buf.writeUInt8(node.collision.data.lights.r, cursor) //node.collision.data.lights.r
+                    cursor = buf.writeUInt8(node.collision.data.lights.g, cursor) //node.collision.data.lights.g
+                    cursor = buf.writeUInt8(node.collision.data.lights.b, cursor) //node.collision.data.lights.b
+                    cursor = buf.writeUInt8(node.collision.data.lights.unk1, cursor) //node.collision.data.lights.unk1
+                    cursor = buf.writeUInt8(node.collision.data.lights.unk2, cursor) //node.collision.data.lights.unk2
+                    cursor = buf.writeFloatBE(node.collision.data.lights.x, cursor) //node.collision.data.lights.x
+                    cursor = buf.writeFloatBE(node.collision.data.lights.y, cursor) //node.collision.data.lights.y
+                    cursor = buf.writeFloatBE(node.collision.data.lights.z, cursor) //node.collision.data.lights.z
+                    cursor = buf.writeFloatBE(node.collision.data.lights.unk3, cursor) //node.collision.data.lights.unk3
+                    cursor = buf.writeFloatBE(node.collision.data.lights.unk4, cursor) //node.collision.data.lights.unk4
+                    cursor = buf.writeFloatBE(node.collision.data.lights.unk5, cursor) //node.collision.data.lights.unk5
+                    cursor = buf.writeInt32BE(node.collision.data.flags, cursor) //node.collision.data.flags
+                    cursor = buf.writeInt32BE(node.collision.data.unk2, cursor) //node.collision.data.unk2
+                    cursor = buf.writeInt32BE(node.collision.data.unload, cursor) //node.collision.data.unload
+                    cursor = buf.writeInt32BE(node.collision.data.load, cursor)//node.collision.data.load
 
                     //      TRIGGERS
                     if (node.collision.data?.triggers?.length) { //(node.collision.data?.triggers?.length && index !== 1) || (index == 1 && ![666740].includes(id))

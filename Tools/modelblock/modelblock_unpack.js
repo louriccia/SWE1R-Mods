@@ -1,5 +1,5 @@
 const fs = require('fs');
-const test = true
+const test = false
 const file = fs.readFileSync(test ? 'C:/Program Files (x86)/Steam/steamapps/common/Star Wars Episode I Racer/data/lev01/out_modelblock.bin' : 'C:/Program Files (x86)/Steam/steamapps/common/Star Wars Episode I Racer/data/lev01/backup/out_modelblock.bin') //this is the file located in the game's data/lev01/ folder
 let out_block = {}
 
