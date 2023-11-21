@@ -1,6 +1,4 @@
 
-const fs = require('fs');
-
 exports.highlight = function ({ cursor, hl } = {}) {
     //this function is called whenever an address need to be 'highlighted' because it is a pointer
     //every model begins with a pointer map where each bit represents 4 bytes in the following model 
@@ -65,10 +63,10 @@ exports.read_Anim = function ({ buffer, cursor, model } = {}) {
 exports.write_Anim = function ({ buffer, cursor, model } = {}) {
     cursor += buffer.write('Anim', cursor)
     for (let i = 0; i < model.Anim.length; i++) {
-        highlight(cursor)
+        exports.highlight({ cursor, hl })
         cursor += 4
     }
-    highlight(cursor)
+    exports.highlight({ cursor, hl })
     cursor += 4
     return cursor + 4
 }
@@ -87,11 +85,11 @@ exports.read_AltN = function ({ buffer, cursor, model } = {}) {
 exports.write_AltN = function ({ buffer, cursor, model } = {}) {
     cursor += buffer.write('AltN', cursor)
     for (let i = 0; i < model.AltN.length; i++) {
-        highlight(cursor)
+        exports.highlight({ cursor, hl })
         cursor += 4
     }
 
-    highlight(cursor)
+    exports.highlight({ cursor, hl })
     cursor += 4
 
     return cursor
@@ -132,7 +130,7 @@ exports.read_header = function ({ buffer, model, index } = {}) {
 exports.write_header = function ({ buffer, cursor, model, hl } = {}) {
     cursor += buffer.write(model.ext, cursor)
     for (let i = 0; i < model.header.length; i++) {
-        highlight(cursor)
+        exports.highlight({ cursor, hl })
         cursor = buffer.writeInt32BE(model.header[i], cursor)
     }
     cursor = buffer.writeInt32BE(-1, cursor)
@@ -169,9 +167,9 @@ exports.write_mat = function ({ buffer, cursor, mat } = {}) {
     let mat_addr = cursor
     cursor = buffer.writeInt32BE(mat.format, cursor)
     cursor += 4
-    highlight(cursor)
+    exports.highlight({ cursor, hl })
     cursor += 4
-    highlight(cursor)
+    exports.highlight({ cursor, hl })
     cursor += 4
     if (mat.texture) {
         buffer.writeUInt32BE(cursor, mat_addr + 8)
@@ -245,7 +243,7 @@ exports.write_mat_texture = function ({ buffer, cursor, texture } = {}) {
 
     let unk_pointer = cursor
     for (let i = 0; i < 6; i++) {
-        highlight(cursor)
+        exports.highlight({ cursor, hl })
         cursor += 4
     }
 
@@ -400,7 +398,117 @@ exports.read_animation = function ({ buffer, cursor } = {}) {
     return anim
 }
 
-//write animation
+exports.write_animation = function ({ buffer, cursor, animation, hl } = {}) {
+    cursor += 61 * 4
+    cursor = buffer.writeFloatBE(animation.float1, cursor)
+    cursor = buffer.writeFloatBE(animation.float2, cursor)
+    cursor = buffer.writeFloatBE(animation.float3, cursor)
+    cursor = buffer.writeInt16BE(animation.flag1, cursor)
+    cursor = buffer.writeInt16BE(animation.flag2, cursor)
+    cursor = buffer.writeInt32BE(animation.num_keyframes, cursor)
+    cursor = buffer.writeFloatBE(animation.float4, cursor)
+    cursor = buffer.writeFloatBE(animation.float5, cursor)
+    cursor = buffer.writeFloatBE(animation.float6, cursor)
+    cursor = buffer.writeFloatBE(animation.float7, cursor)
+    cursor = buffer.writeFloatBE(animation.float8, cursor)
+    exports.highlight({ cursor, hl })
+    let keyframe_times = cursor
+    cursor += 4
+    exports.highlight({ cursor, hl })
+    let keyframe_poses = cursor
+    cursor += 4
+    let anim_target = null
+    let flag = animation.flag2
+    exports.highlight({ cursor, hl })
+    if ([2, 18].includes(flag)) {
+        anim_target = cursor
+    } else {
+        buffer.writeInt32BE(animation.target, cursor)
+    }
+    cursor += 4
+    cursor = buffer.writeInt32BE(animation.unk32, cursor)
+
+    //write keyframe times
+    buffer.writeInt32BE(cursor, keyframe_times)
+    for (let k = 0; k < animation.keyframe_times.length; k++) {
+        cursor = buffer.writeFloatBE(animation.keyframe_times[k], cursor)
+    }
+
+    if ([2, 18].includes(flag)) {
+        //write target list
+        buffer.writeInt32BE(cursor, anim_target)
+        exports.highlight({ cursor, hl })
+        cursor = buffer.writeInt32BE(animation.target, cursor)
+        exports.highlight({ cursor, hl })
+        cursor += 4
+    }
+
+    //write keyframe poses
+    buffer.writeInt32BE(cursor, keyframe_poses)
+
+    for (let p = 0; p < animation.keyframe_poses.length; p++) {
+
+        if ([8, 24, 40, 56, 4152].includes(flag)) { //rotation (4)
+            for (let f = 0; f < 4; f++) {
+                cursor = buffer.writeFloatBE(animation.keyframe_poses[p][f], cursor)
+            }
+        } else if ([25, 41, 57, 4153].includes(flag)) { //position (3)
+            for (let f = 0; f < 3; f++) {
+                cursor = buffer.writeFloatBE(animation.keyframe_poses[p][f] * (f == 0 ? xStretch : f == 1 ? yStretch : zStretch) + (f == 0 ? xStretch : f == 1 ? yStretch : zStretch), cursor)
+            }
+        } else if ([27, 28].includes(flag)) { //uv_x/uv_y (1)
+            cursor = buffer.writeFloatBE(animation.keyframe_poses[p], cursor)
+        }
+    }
+    if ([2, 18].includes(flag)) { //texture
+        let texturelist = cursor
+        for (let k = 0; k < animation.keyframe_poses.length; k++) {
+            exports.highlight({ cursor, hl })
+            cursor += 4
+        }
+        for (let k = 0; k < animation.keyframe_poses.length; k++) {
+            if (rep.textures[animation.keyframe_poses[k]?.repeat]?.address) { //animation.keyframe_poses[k].repeat && 
+                buffer.writeInt32BE(rep.textures[animation.keyframe_poses[k].repeat].address, texturelist + k * 4)
+            } else if (rep.textures[animation.keyframe_poses[k]?.offset]?.address) { //animation.keyframe_poses[k].repeat && 
+                buffer.writeInt32BE(rep.textures[animation.keyframe_poses[k].offset].address, texturelist + k * 4)
+            } else {
+                buffer.writeInt32BE(cursor, texturelist + k * 4)
+
+                rep.textures[animation.keyframe_poses[k].offset] = { address: cursor }
+                cursor = buffer.writeInt32BE(animation.keyframe_poses[k].unk0, cursor)             //0, 1, 65, 73
+                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk1, cursor)         //width * 4
+                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk2, cursor)         //height * 4
+                cursor = buffer.writeInt32BE(animation.keyframe_poses[k].unk3, cursor)           //always 0
+                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].format, cursor)       //3, 512, 513, 1024
+                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk4, cursor)         //0, 4
+                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].width, cursor)       //pixel width
+                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].height, cursor)       //pixel height
+                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk5, cursor)         //width * 512 (unsigned)
+                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk6, cursor)         //height * 512 (unsigned)
+                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk7, cursor)        //0 when unk4 is 4, 
+                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk8, cursor)
+                let unk_pointer_start = cursor
+                cursor += 28
+                exports.highlight({ cursor, hl })
+                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk9, cursor)
+                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].tex_index, cursor)
+                cursor += 4
+
+                for (let p = 0; p < animation.keyframe_poses[k].unk_pointers.length; p++) {
+                    highlight(unk_pointer_start + p * 4)
+                    buffer.writeInt32BE(cursor, unk_pointer_start + p * 4)
+                    cursor = buffer.writeInt32BE(animation.keyframe_poses[k].unk_pointers[p].unk0, cursor)
+                    cursor = buffer.writeInt32BE(animation.keyframe_poses[k].unk_pointers[p].unk1, cursor)
+                    cursor = buffer.writeInt32BE(animation.keyframe_poses[k].unk_pointers[p].unk2, cursor)
+                    cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk_pointers[p].unk3, cursor)
+                    cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk_pointers[p].unk4, cursor)
+                }
+            }
+        }
+    }
+
+    return cursor
+}
 
 exports.read_collision_vert_strips = function ({ buffer, cursor, count } = {}) {
     if (!cursor) {
@@ -584,7 +692,7 @@ exports.write_collision_data = function ({ buffer, cursor, data, hl } = {}) {
     cursor = buffer.writeInt32BE(data.unload, cursor) //data.unload
     cursor = buffer.writeInt32BE(data.load, cursor)//data.load
 
-    cursor = exports.write_collision_triggers({ cursor, trigger: data.triggers })
+    cursor = exports.write_collision_triggers({ buffer, cursor, trigger: data.triggers, hl })
 
     return cursor
 }
@@ -687,7 +795,7 @@ exports.write_visual_index_buffer = function ({ buffer, cursor, index_buffer } =
         v += 8
     }
     cursor += v
-    cursor = buf.writeUInt8(223, cursor)
+    cursor = buffer.writeUInt8(223, cursor)
     cursor += 7
     return cursor
 }
@@ -714,11 +822,11 @@ exports.read_visual_vert_buffer = function ({ buffer, cursor, count } = {}) {
     return vert_buffer
 }
 
-exports.write_visual_vert_buffer = function ({ buffer, cursor, buf } = {}) {
-    buf.writeInt32BE(cursor, headstart + 52)
+exports.write_visual_vert_buffer = function ({ buffer, cursor } = {}) {
+    buffer.writeInt32BE(cursor, headstart + 52)
     for (let i = 0; i < buffer.length; i++) {
         if (bufferpointers[i]) {
-            buf.writeInt32BE(cursor, bufferpointers[i])
+            buffer.writeInt32BE(cursor, bufferpointers[i])
         }
 
         let x = buffer[i].x
@@ -732,18 +840,18 @@ exports.write_visual_vert_buffer = function ({ buffer, cursor, buf } = {}) {
         exports.adjustBB('y', y, bb)
         exports.adjustBB('z', z, bb)
 
-        cursor = buf.writeInt16BE(Math.min(!skybox ? x : buffer[i].x), cursor)
-        cursor = buf.writeInt16BE(Math.min(!skybox ? y : buffer[i].y), cursor)
-        cursor = buf.writeInt16BE(Math.min(!skybox ? z : buffer[i].z), cursor)
+        cursor = buffer.writeInt16BE(Math.min(!skybox ? x : buffer[i].x), cursor)
+        cursor = buffer.writeInt16BE(Math.min(!skybox ? y : buffer[i].y), cursor)
+        cursor = buffer.writeInt16BE(Math.min(!skybox ? z : buffer[i].z), cursor)
         cursor += 2
 
-        cursor = buf.writeInt16BE(buffer[i].uv_x, cursor)
-        cursor = buf.writeInt16BE(buffer[i].uv_y, cursor)
+        cursor = buffer.writeInt16BE(buffer[i].uv_x, cursor)
+        cursor = buffer.writeInt16BE(buffer[i].uv_y, cursor)
 
-        cursor = buf.writeUInt8(buffer[i].v_color[0], cursor)
-        cursor = buf.writeUInt8(buffer[i].v_color[1], cursor)
-        cursor = buf.writeUInt8(buffer[i].v_color[2], cursor)
-        cursor = buf.writeUInt8(buffer[i].v_color[3], cursor)
+        cursor = buffer.writeUInt8(buffer[i].v_color[0], cursor)
+        cursor = buffer.writeUInt8(buffer[i].v_color[1], cursor)
+        cursor = buffer.writeUInt8(buffer[i].v_color[2], cursor)
+        cursor = buffer.writeUInt8(buffer[i].v_color[3], cursor)
     }
     return cursor
 }
@@ -802,22 +910,22 @@ exports.write_mesh_group = function ({ buffer, cursor, mesh_group, hl } = {}) {
     if (mesh_group.visuals.vert_buffer) {
         exports.highlight(headstart + 52, hl)
         buffer.writeUInt32BE(cursor, headstart + 52)
-        cursor = exports.write_visual_vert_buffer({ buffer, cursor, buf: mesh_group.visuals.vert_buffer })
+        cursor = exports.write_visual_vert_buffer({ buffer, cursor, buffer: mesh_group.visuals.vert_buffer })
     }
     if (mesh_group.collision.data) {
         exports.highlight(headstart + 4, hl)
-        buf.writeUInt32BE(cursor, headstart + 4)
+        buffer.writeUInt32BE(cursor, headstart + 4)
         cursor = exports.write_collision_data({ buffer, cursor, data: mesh_group.collision.data, hl })
     }
 
     //adjust minmax
     if (rep.extension == 'Trak') {
-        buf.writeFloatBE(bb.min_x, minmax)
-        buf.writeFloatBE(bb.min_y, minmax + 4)
-        buf.writeFloatBE(bb.min_z, minmax + 8)
-        buf.writeFloatBE(bb.max_x, minmax + 12)
-        buf.writeFloatBE(bb.max_y, minmax + 16)
-        buf.writeFloatBE(bb.max_z, minmax + 20)
+        buffer.writeFloatBE(bb.min_x, minmax)
+        buffer.writeFloatBE(bb.min_y, minmax + 4)
+        buffer.writeFloatBE(bb.min_z, minmax + 8)
+        buffer.writeFloatBE(bb.max_x, minmax + 12)
+        buffer.writeFloatBE(bb.max_y, minmax + 16)
+        buffer.writeFloatBE(bb.max_z, minmax + 20)
 
         adjustBB('x', bb.min_x, parent.bb)
         adjustBB('x', bb.max_x, parent.bb)
@@ -826,12 +934,12 @@ exports.write_mesh_group = function ({ buffer, cursor, mesh_group, hl } = {}) {
         adjustBB('z', bb.min_z, parent.bb)
         adjustBB('z', bb.max_z, parent.bb)
 
-        buf.writeFloatBE(parent.bb.min_x, parent.bb.address)
-        buf.writeFloatBE(parent.bb.min_y, parent.bb.address + 4)
-        buf.writeFloatBE(parent.bb.min_z, parent.bb.address + 8)
-        buf.writeFloatBE(parent.bb.max_x, parent.bb.address + 12)
-        buf.writeFloatBE(parent.bb.max_y, parent.bb.address + 16)
-        buf.writeFloatBE(parent.bb.max_z, parent.bb.address + 20)
+        buffer.writeFloatBE(parent.bb.min_x, parent.bb.address)
+        buffer.writeFloatBE(parent.bb.min_y, parent.bb.address + 4)
+        buffer.writeFloatBE(parent.bb.min_z, parent.bb.address + 8)
+        buffer.writeFloatBE(parent.bb.max_x, parent.bb.address + 12)
+        buffer.writeFloatBE(parent.bb.max_y, parent.bb.address + 16)
+        buffer.writeFloatBE(parent.bb.max_z, parent.bb.address + 20)
     }
 
     return cursor
@@ -936,7 +1044,100 @@ exports.read_node = function ({ buffer, cursor, model } = {}) {
     return node
 }
 
-//write node
+exports.write_node = function ({ buffer, cursor, node } = {}) {
+
+    cursor = buffer.writeInt32BE(head[0], cursor)
+    cursor = buffer.writeInt32BE(head[1], cursor)
+    cursor = buffer.writeInt32BE(head[2], cursor)
+    cursor = buffer.writeInt32BE(head[3], cursor)
+    cursor = buffer.writeInt32BE(head[4], cursor)
+    cursor = buffer.writeInt32BE(node.children.length, cursor)
+    exports.highlight({ cursor, hl })
+    let child_list_addr_addr = cursor
+    cursor += 4
+
+    let mesh_group = false
+    switch (head[0]) {
+        case 12388:
+            mesh_group = true
+            cursor = buffer.writeFloatBE(node.min_x, cursor)
+            cursor = buffer.writeFloatBE(node.min_y, cursor)
+            cursor = buffer.writeFloatBE(node.min_z, cursor)
+            cursor = buffer.writeFloatBE(node.max_x, cursor)
+            cursor = buffer.writeFloatBE(node.max_y, cursor)
+            cursor = buffer.writeFloatBE(node.max_z, cursor)
+            break
+        case 20582:
+            cursor = buffer.writeFloatBE(node.f1, cursor)
+            cursor = buffer.writeFloatBE(node.f2, cursor)
+            cursor = buffer.writeFloatBE(node.f3, cursor)
+            cursor = buffer.writeFloatBE(node.f4, cursor)
+            cursor = buffer.writeFloatBE(node.f5, cursor)
+            cursor = buffer.writeFloatBE(node.f6, cursor)
+            cursor = buffer.writeFloatBE(node.f7, cursor)
+            cursor = buffer.writeFloatBE(node.f8, cursor)
+            cursor = buffer.writeFloatBE(node.f9, cursor)
+            cursor = buffer.writeFloatBE(node.f10, cursor)
+            cursor = buffer.writeFloatBE(node.f11, cursor)
+            break
+        case 53348:
+            cursor = buffer.writeFloatBE(node.ax, cursor)
+            cursor = buffer.writeFloatBE(node.ay, cursor)
+            cursor = buffer.writeFloatBE(node.az, cursor)
+            cursor = buffer.writeFloatBE(node.bx, cursor)
+            cursor = buffer.writeFloatBE(node.by, cursor)
+            cursor = buffer.writeFloatBE(node.bz, cursor)
+            cursor = buffer.writeFloatBE(node.cx, cursor)
+            cursor = buffer.writeFloatBE(node.cy, cursor)
+            cursor = buffer.writeFloatBE(node.cz, cursor)
+            cursor = buffer.writeFloatBE(node.x, cursor)
+            cursor = buffer.writeFloatBE(node.y, cursor)
+            cursor = buffer.writeFloatBE(node.z, cursor)
+            break
+        case 53349:
+            cursor = buffer.writeFloatBE(node.ax, cursor)
+            cursor = buffer.writeFloatBE(node.ay, cursor)
+            cursor = buffer.writeFloatBE(node.az, cursor)
+            cursor = buffer.writeFloatBE(node.bx, cursor)
+            cursor = buffer.writeFloatBE(node.by, cursor)
+            cursor = buffer.writeFloatBE(node.bz, cursor)
+            cursor = buffer.writeFloatBE(node.cx, cursor)
+            cursor = buffer.writeFloatBE(node.cy, cursor)
+            cursor = buffer.writeFloatBE(node.cz, cursor)
+            cursor = buffer.writeFloatBE(node.x, cursor)
+            cursor = buffer.writeFloatBE(node.y, cursor)
+            cursor = buffer.writeFloatBE(node.z, cursor)
+            cursor = buffer.writeFloatBE(node.x1, cursor)
+            cursor = buffer.writeFloatBE(node.y1, cursor)
+            cursor = buffer.writeFloatBE(node.z1, cursor)
+            break
+        case 53350:
+            cursor = buffer.writeInt32BE(node.unk1, cursor)
+            cursor = buffer.writeInt32BE(node.unk2, cursor)
+            cursor = buffer.writeInt32BE(node.unk3, cursor)
+            cursor = buffer.writeFloatBE(node.unk4, cursor)
+            break
+    }
+
+    //write offset to this child list
+    buffer.writeInt32BE(cursor, child_list_addr_addr)
+
+    //child list
+    let child_list_addr = cursor
+    for (let c = 0; c < node.children.length; c++) {
+        exports.highlight({ cursor, hl })
+        cursor += 4
+    }
+
+    //write children
+    for (let c = 0; c < node.children.length; c++) {
+        buffer.writeUInt32BE(cursor, child_list_addr + c * 4)
+        let child = node.children[c]
+        cursor = exports.write_node({ buffer, cursor, node: child })
+    }
+
+    return cursor
+}
 
 exports.read_model = function ({ buffer, index } = {}) {
     let model = {}
@@ -961,8 +1162,8 @@ exports.read_block = function ({ file, map } = {}) {
     let asset_count = file.readUInt32BE(0)
     let assets = []
     for (let i = 0; i < asset_count; i++) {
-        const asset_start = file.readUInt32BE((map ? 8 : 0) + i * (map ? 8 : 4))
-        const asset_end = file.readUInt32BE((map ? 12 : 4) + i * (map ? 8 : 4))
+        const asset_start = file.readUInt32BE((map ? 8 : 4) + i * (map ? 8 : 4))
+        const asset_end = file.readUInt32BE((map ? 12 : 8) + i * (map ? 8 : 4))
         const asset = file.slice(asset_start, asset_end)
         assets.push(asset)
     }
@@ -985,10 +1186,11 @@ exports.write_block = function ({ asset_buffers, hl_buffers, map } = {}) {
         }
 
         index.writeUInt32BE(cursor, 4 + (map ? (i * 2 + 1) : i) * 4)
+        console.log(cursor)
         cursor += asset_buffers[i].byteLength
         block.push(asset_buffers[i])
     }
-    index.writeUInt32BE(cursor, (length * 2 + 1) * 4) //end of block offset
+    index.writeUInt32BE(cursor, (length * (map ? 2 : 1) + 1) * 4) //end of block offset
 
     return Buffer.concat(block)
 }
@@ -1006,4 +1208,171 @@ exports.adjustBB = function ({ axis, value, bb } = {}) {
     if (value > bb['max_' + axis]) {
         bb['max_' + axis] = value
     }
+}
+
+exports.read_spline_point = function ({ buffer, cursor } = {}) {
+    let point = {
+        next_count: buffer.readInt16BE(cursor),
+        previous_count: buffer.readInt16BE(cursor + 2),
+        next1: buffer.readInt16BE(cursor + 4),
+        next2: buffer.readInt16BE(cursor + 6),
+        previous1: buffer.readInt16BE(cursor + 8),
+        previous2: buffer.readInt16BE(cursor + 10),
+        unknown1: buffer.readInt16BE(cursor + 12),
+        unknown2: buffer.readInt16BE(cursor + 14),
+        point_x: buffer.readFloatBE(cursor + 16),
+        point_y: buffer.readFloatBE(cursor + 20),
+        point_z: buffer.readFloatBE(cursor + 24),
+        rotation_x: buffer.readFloatBE(cursor + 28),
+        rotation_y: buffer.readFloatBE(cursor + 32),
+        rotation_z: buffer.readFloatBE(cursor + 36),
+        handle1_x: buffer.readFloatBE(cursor + 40),
+        handle1_y: buffer.readFloatBE(cursor + 44),
+        handle1_z: buffer.readFloatBE(cursor + 48),
+        handle2_x: buffer.readFloatBE(cursor + 52),
+        handle2_y: buffer.readFloatBE(cursor + 56),
+        handle2_z: buffer.readFloatBE(cursor + 60),
+        point_num0: buffer.readInt16BE(cursor + 64),
+        point_num1: buffer.readInt16BE(cursor + 66),
+        point_num2: buffer.readInt16BE(cursor + 68),
+        point_num3: buffer.readInt16BE(cursor + 70),
+        point_num4: buffer.readInt16BE(cursor + 72),
+        point_num5: buffer.readInt16BE(cursor + 74),
+        point_num6: buffer.readInt16BE(cursor + 76),
+        point_num7: buffer.readInt16BE(cursor + 78),
+        point_num8: buffer.readInt16BE(cursor + 80),
+        point_unk: buffer.readInt16BE(cursor + 82)
+    }
+    return point
+}
+
+exports.write_spline_point = function ({ buffer, cursor, point } = {}) {
+    cursor = buffer.writeInt16BE(point.next_count, cursor) //number of points this connects to
+    cursor = buffer.writeInt16BE(point.previous_count, cursor) //number of points that connect to this
+    cursor = buffer.writeInt16BE(point.next1, cursor) //index of the first point this connects to
+    cursor = buffer.writeInt16BE(point.next2, cursor) //index of the second point this connects to
+    cursor = buffer.writeInt16BE(point.previous1, cursor) //index of the first point that connects to this
+    cursor = buffer.writeInt16BE(point.previous2, cursor) //index of the second point that connects to this
+    cursor = buffer.writeInt16BE(point.unknown1, cursor) //
+    cursor = buffer.writeInt16BE(point.unknown2, cursor) //
+    //xyz coordinates of the point in global space
+    cursor = buffer.writeFloatBE(point.point_x, cursor)
+    cursor = buffer.writeFloatBE(point.point_y, cursor)
+    cursor = buffer.writeFloatBE(point.point_z, cursor)
+    //orientation of the spline point (always 0, 0, 1)
+    cursor = buffer.writeFloatBE(point.rotation_x, cursor) //0
+    cursor = buffer.writeFloatBE(point.rotation_y, cursor) //0
+    cursor = buffer.writeFloatBE(point.rotation_z, cursor) //1
+    //xyz coordinates of the trailing handle
+    cursor = buffer.writeFloatBE(point.handle1_x, cursor)
+    cursor = buffer.writeFloatBE(point.handle1_y, cursor)
+    cursor = buffer.writeFloatBE(point.handle1_z, cursor)
+    //xyz coordinates of the leading handle
+    cursor = buffer.writeFloatBE(point.handle2_x, cursor)
+    cursor = buffer.writeFloatBE(point.handle2_y, cursor)
+    cursor = buffer.writeFloatBE(point.handle2_z, cursor)
+    //the 'progress' index of the point, this value seens to determine where the player appears on the progress meter
+    cursor = buffer.writeInt16BE(point.point_num0, cursor) //
+    //the actual index of the point, setting to -1 doesn't seem to affect anything
+    cursor = buffer.writeInt16BE(point.point_num1, cursor)
+    //the overflow index of the point, setting to -1 doesn't seem to affect anything
+    cursor = buffer.writeInt16BE(point.point_num2, cursor)
+    //remaining indeces are always -1
+    cursor = buffer.writeInt16BE(point.point_num3, cursor)
+    cursor = buffer.writeInt16BE(point.point_num4, cursor)
+    cursor = buffer.writeInt16BE(point.point_num5, cursor)
+    cursor = buffer.writeInt16BE(point.point_num6, cursor)
+    cursor = buffer.writeInt16BE(point.point_num7, cursor)
+    cursor = buffer.writeInt16BE(point.point_num8, cursor)
+
+    cursor = buffer.writeInt16BE(0, cursor) //point.point_unk
+    return cursor
+}
+
+exports.read_spline = function ({ buffer, index } = {}) {
+    let cursor = 0
+    let spline = {
+        id: index,
+        unknown: buffer.readInt32BE(cursor),
+        point_count: buffer.readInt32BE(cursor + 4),
+        segment_count: buffer.readInt32BE(cursor + 8),
+        unknown2: buffer.readInt32BE(cursor + 12),
+        points: []
+    }
+    cursor += 16
+    for (let i = 0; i < spline.point_count; i++) {
+        spline.points.push(
+            exports.read_spline_point({ buffer, cursor })
+        )
+        cursor += 84
+    }
+    return spline
+}
+
+exports.write_spline = function ({ spline, index } = {}) {
+    let buffer = Buffer.alloc(16 + spline.points.length * 84)
+    let cursor = 0
+    cursor = buffer.writeInt32BE(spline.unknown, cursor)
+    cursor = buffer.writeInt32BE(spline.point_count, cursor) //the number of points on the spline
+    cursor = buffer.writeInt32BE(spline.segment_count, cursor) //the number of segments/connections on the spline
+    cursor = buffer.writeInt32BE(spline.unknown2, cursor)
+    for (let i = 0; i < spline.points.length; i++) {
+        cursor = exports.write_spline_point({ buffer, cursor, point: spline.points[i] })
+    }
+    return buffer.slice(0, cursor) //cut off any excess bytes
+}
+
+exports.invert_spline = function ({ spline } = {}) {
+    //special thanks to kingbeandip for helping figuring out a simple way to accomplish this
+    let inverted_points = []
+    let doublecount = 0
+    let biggest_num0 = 0
+
+    for (let i = 0; i < spline.points.length; i++) { //scan to find largest num0 value
+        if (spline.points[i].point_num0 > biggest_num0) {
+            biggest_num0 = spline.points[i].point_num0
+        }
+    }
+
+    for (let i = 0; i < spline.points.length; i++) {
+        let point = {}
+        point.previous_count = spline.points[i].next_count //swap join/splits
+        point.next_count = spline.points[i].previous_count //swap join/splits
+        point.next1 = spline.points[i].previous1
+        point.next2 = spline.points[i].previous2
+        point.previous1 = spline.points[i].next1
+        point.previous2 = spline.points[i].next2
+        point.unknown1 = spline.points[i].unknown1
+        point.unknown2 = spline.points[i].unknown2
+        point.point_x = spline.points[i].point_x
+        point.point_y = spline.points[i].point_y
+        point.point_z = spline.points[i].point_z
+        point.rotation_x = spline.points[i].rotation_x //always 0
+        point.rotation_y = spline.points[i].rotation_y //always 0
+        point.rotation_z = spline.points[i].rotation_z //always 1
+        point.handle1_x = spline.points[i].handle2_x //swap handles
+        point.handle1_y = spline.points[i].handle2_y //swap handles
+        point.handle1_z = spline.points[i].handle2_z //swap handles
+        point.handle2_x = spline.points[i].handle1_x //swap handles 
+        point.handle2_y = spline.points[i].handle1_y //swap handles
+        point.handle2_z = spline.points[i].handle1_z //swap handles
+        point.point_num0 = (spline.points[i].point_num0 == 0) ? 0 : biggest_num0 - spline.points[i].point_num0 + 1;
+        point.point_num1 = i
+        if (point.splits == 2) {
+            point.point_num2 = spline.points.length + doublecount
+            doublecount++
+        } else {
+            point.point_num2 = -1
+        }
+        point.point_num3 = -1
+        point.point_num4 = -1
+        point.point_num5 = -1
+        point.point_num6 = -1
+        point.point_num7 = -1
+        point.point_num8 = -1
+        point.point_unk = spline.points[i].point_unk
+        inverted_points.push(point)
+    }
+    spline.points = [...inverted_points]
+    return spline
 }

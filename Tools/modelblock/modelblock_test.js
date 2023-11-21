@@ -8,7 +8,7 @@ if (!fs.existsSync(filePath)) {
 const file = fs.readFileSync(filePath) //this is the file located in the game's data/lev01/ folder
 const { read_block, read_model } = require('./modelblock_functions')
 
-let model_buffers = read_block({ file })
+let model_buffers = read_block({ file, map: true })
 for (let i = 1; i < 2; i++) {
     let buffer = model_buffers[i]
     const model = read_model({ buffer, i })
