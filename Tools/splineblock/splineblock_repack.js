@@ -3,7 +3,7 @@ const { write_block, write_spline } = require('../block');
 
 //gather spline jsons from folder (output by splineblock_unpack.js)
 let replacements = []
-for (r = 0; r < 90; r++) {
+for (r = 0; r < 91; r++) {
     if (fs.existsSync(`rep/${r}.json`)) {
         console.log("found " + r + " replacement")
         replacements[r] = new Promise((resolve, reject) => {
@@ -26,7 +26,8 @@ for (r = 0; r < 90; r++) {
 }
 
 Promise.all(replacements).then((replacements) => {
+    console.log(replacements.length)
     let file = write_block({ asset_buffers: replacements.map((r, index) => write_spline({ spline: r, index })) })
     fs.writeFileSync('out/out_splineblock.bin', file);
-    console.log(`successfully repacked ${replacements.length} /splines to out/splineblock.bin`)
+    console.log(`successfully repacked ${replacements.length} splines to out/splineblock.bin`)
 })

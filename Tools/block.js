@@ -1158,16 +1158,19 @@ exports.write_model = function ({ model } = {}) {
     return cursor
 }
 
-exports.read_block = function ({ file, map } = {}) {
+exports.read_block = function ({ file, arr } = {}) {
     let asset_count = file.readUInt32BE(0)
-    let assets = []
     for (let i = 0; i < asset_count; i++) {
-        const asset_start = file.readUInt32BE((map ? 8 : 4) + i * (map ? 8 : 4))
-        const asset_end = file.readUInt32BE((map ? 12 : 8) + i * (map ? 8 : 4))
-        const asset = file.slice(asset_start, asset_end)
-        assets.push(asset)
+        for (let j = 0; j < arr.length; j++) {
+            const asset_start = file.readUInt32BE(4 + i * 4 * arr.length)
+            const asset_end = file.readUInt32BE(8 + i * 4 * arr.length)
+            const asset = file.slice(asset_start, asset_end)
+            if (asset_start && arr[j]) {
+                arr[j].push(asset)
+            }
+        }
     }
-    return assets
+    return arr
 }
 
 exports.write_block = function ({ asset_buffers, hl_buffers, map } = {}) {
@@ -1186,7 +1189,6 @@ exports.write_block = function ({ asset_buffers, hl_buffers, map } = {}) {
         }
 
         index.writeUInt32BE(cursor, 4 + (map ? (i * 2 + 1) : i) * 4)
-        console.log(cursor)
         cursor += asset_buffers[i].byteLength
         block.push(asset_buffers[i])
     }
@@ -1285,7 +1287,7 @@ exports.write_spline_point = function ({ buffer, cursor, point } = {}) {
     cursor = buffer.writeInt16BE(point.point_num7, cursor)
     cursor = buffer.writeInt16BE(point.point_num8, cursor)
 
-    cursor = buffer.writeInt16BE(0, cursor) //point.point_unk
+    cursor = buffer.writeInt16BE(point.point_unk, cursor) //point.point_unk
     return cursor
 }
 
@@ -1375,4 +1377,20 @@ exports.invert_spline = function ({ spline } = {}) {
     }
     spline.points = [...inverted_points]
     return spline
+}
+
+exports.read_palette = function ({ buffer } = {}) {
+    let palette = []
+    for (let cursor = 0; cursor < buffer.length; cursor += 2) {
+        let color = file.readInt16BE(cursor)
+        let a = ((color >> 0) & 0x1) * 0xFF
+        let b = Math.round((((color >> 1) & 0x1F) / 0x1F) * 255)
+        let g = Math.round((((color >> 6) & 0x1F) / 0x1F) * 255)
+        let r = Math.round((((color >> 11) & 0x1F) / 0x1F) * 255)
+        if ((r + g + b) > 0 && a == 0) {
+            a = 255
+        }
+        palette.push([r, g, b, a])
+    }
+    return palette
 }
