@@ -25,9 +25,15 @@ for (r = 0; r < 91; r++) {
     }
 }
 
-Promise.all(replacements).then((replacements) => {
-    console.log(replacements.length)
-    let file = write_block({ asset_buffers: replacements.map((r, index) => write_spline({ spline: r, index })) })
+Promise.all(replacements).then((splines) => {
+    let file = write_block(
+        {
+            arr:
+                [
+                    splines.map((r, index) => write_spline({ spline: r, index }))
+                ]
+        }
+    )
     fs.writeFileSync('out/out_splineblock.bin', file);
-    console.log(`successfully repacked ${replacements.length} splines to out/splineblock.bin`)
+    console.log(`successfully repacked ${splines.length} splines to out/splineblock.bin`)
 })

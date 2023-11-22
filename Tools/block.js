@@ -1,3 +1,4 @@
+const Jimp = require('jimp');
 
 exports.highlight = function ({ cursor, hl } = {}) {
     //this function is called whenever an address need to be 'highlighted' because it is a pointer
@@ -1160,39 +1161,40 @@ exports.write_model = function ({ model } = {}) {
 
 exports.read_block = function ({ file, arr } = {}) {
     let asset_count = file.readUInt32BE(0)
+    let cursor = 4
     for (let i = 0; i < asset_count; i++) {
         for (let j = 0; j < arr.length; j++) {
-            const asset_start = file.readUInt32BE(4 + i * 4 * arr.length)
-            const asset_end = file.readUInt32BE(8 + i * 4 * arr.length)
+            const asset_start = file.readUInt32BE(cursor)
+            cursor += 4
+            let asset_end = file.readUInt32BE(cursor)
+            if (!asset_end) {
+                asset_end = file.readUInt32BE(cursor + 4) //for textureblock we need to seek forward after blank offsets
+            }
             const asset = file.slice(asset_start, asset_end)
-            if (asset_start && arr[j]) {
-                arr[j].push(asset)
+            if (arr[j]) {
+                arr[j].push(asset_start ? asset : null)
             }
         }
     }
     return arr
 }
 
-exports.write_block = function ({ asset_buffers, hl_buffers, map } = {}) {
-    let length = asset_buffers.length
-    let index = Buffer.alloc((length * (map ? 2 : 1) + 2) * 4)
+exports.write_block = function ({ arr } = {}) {
+    let length = arr[0].length
+    let index = Buffer.alloc((length * arr.length + 2) * 4)
     let block = []
     block.push(index)
 
     index.writeUInt32BE(length, 0) //write total number of assets
     let cursor = index.byteLength
     for (let i = 0; i < length; i++) {
-        if (map) {
-            index.writeUInt32BE(cursor, 4 + (i * 2) * 4)
-            cursor += hl_buffers[i].byteLength
-            block.push(hl_buffers[i])
+        for (let j = 0; j < arr.length; j++) {
+            index.writeUInt32BE((arr[j][i] && arr[j][i].length) ? cursor : 0, 4 + (i * arr.length + j) * 4)
+            cursor += arr[j][i].byteLength
+            block.push(arr[j][i])
         }
-
-        index.writeUInt32BE(cursor, 4 + (map ? (i * 2 + 1) : i) * 4)
-        cursor += asset_buffers[i].byteLength
-        block.push(asset_buffers[i])
     }
-    index.writeUInt32BE(cursor, (length * (map ? 2 : 1) + 1) * 4) //end of block offset
+    index.writeUInt32BE(cursor, (length * arr.length + 1) * 4) //end of block offset
 
     return Buffer.concat(block)
 }
@@ -1380,9 +1382,12 @@ exports.invert_spline = function ({ spline } = {}) {
 }
 
 exports.read_palette = function ({ buffer } = {}) {
+    if (!buffer) {
+        return []
+    }
     let palette = []
     for (let cursor = 0; cursor < buffer.length; cursor += 2) {
-        let color = file.readInt16BE(cursor)
+        let color = buffer.readInt16BE(cursor)
         let a = ((color >> 0) & 0x1) * 0xFF
         let b = Math.round((((color >> 1) & 0x1F) / 0x1F) * 255)
         let g = Math.round((((color >> 6) & 0x1F) / 0x1F) * 255)
@@ -1394,3 +1399,201 @@ exports.read_palette = function ({ buffer } = {}) {
     }
     return palette
 }
+
+exports.write_palette = function ({ palette }) {
+    if (!palette.length) {
+        return Buffer.alloc(0)
+    }
+    let cursor = 0
+    let buffer = Buffer.alloc(palette.length * 2)
+    for (let j = 0; j < palette.length; j++) {
+        let p = palette[j]
+        let r = parseInt(((p[0]) / 255) * 0x1F) << 11
+        let g = parseInt(((p[1]) / 255) * 0x1F) << 6
+        let b = parseInt(((p[2]) / 255) * 0x1F) << 1
+        let a = parseInt((p[3]) / 255)
+        let pal = (((r | g) | b) | a)
+        buffer.writeUInt16BE(pal, cursor)
+        cursor += 2
+    }
+
+    return buffer
+}
+
+exports.read_pixels = function ({ buffer, format } = {}) {
+    let pixels = []
+    switch (format) {
+        case 3:
+            for (let cursor = 0; cursor < buffer.length; cursor += 4) {
+                let r = buffer.readUInt8(cursor)
+                let g = buffer.readUInt8(cursor + 1)
+                let b = buffer.readUInt8(cursor + 2)
+                let a = buffer.readUInt8(cursor + 3)
+                let pixel = [r, g, b, a]
+                pixels.push(pixel)
+            }
+            break
+        case 512:
+            for (let cursor = 0; cursor < buffer.length; cursor++) {
+                let p = buffer.readUInt8(cursor)
+                let pixel_0 = (p >> 4) & 0xF
+                let pixel_1 = p & 0xF
+                pixels.push(pixel_0, pixel_1)
+            }
+            break
+        case 513:
+            for (let cursor = 0; cursor < buffer.length; cursor++) {
+                let pixel = buffer.readUInt8(cursor)
+                pixels.push(pixel)
+            }
+            break
+        case 1024:
+            for (let cursor = 0; cursor < buffer.length; cursor++) {
+                let p = buffer.readUInt8(cursor)
+                let pixel_0 = ((p >> 4) & 0xF) * 0x11
+                let pixel_1 = (p & 0xF) * 0x11
+                pixels.push(pixel_0, pixel_1)
+            }
+            break
+        case 1025:
+            for (let cursor = 0; cursor < buffer.length; cursor++) {
+                let pixel = null
+                pixel = buffer.readUInt8(cursor)
+                pixels.push(pixel)
+            }
+            break
+    }
+    return pixels
+}
+
+exports.write_pixels = function ({ pixels, format } = {}) {
+    const formatmap = {
+        3: 4,
+        512: 0.5,
+        513: 1,
+        1024: 0.5,
+        1025: 1
+    }
+    let buffer = Buffer.alloc(pixels.length * formatmap[format])
+    let cursor = 0
+    if ([512, 1024].includes(format)) {
+        for (let i = 0; i < pixels.length / 2; i++) {
+            if (format == 512) {
+                buffer.writeUInt8(parseInt((pixels[i * 2]) << 4) | parseInt((pixels[i * 2 + 1])), cursor)
+            } else if (format == 1024) {
+                buffer.writeUInt8((parseInt((pixels[i * 2]) / 0x11) << 4) | (parseInt((pixels[i * 2 + 1]) / 0x11)), cursor)
+            }
+            cursor++
+        }
+    } else if ([513, 1025, 3].includes(format)) {
+        for (let i = 0; i < pixels.length; i++) {
+            let pixel = pixels[i]
+            if (format == 3) {
+                for (let j = 0; j < 4; j++) {
+                    buffer.writeUInt8((pixels[i][j]), cursor)
+                    cursor++
+                }
+            } else {
+                buffer.writeUInt8(pixel, cursor)
+                cursor++
+            }
+        }
+    }
+    return buffer
+}
+
+exports.draw_texture = function ({ pixels, palette, width, height, format, index } = {}) {
+    if (!pixels.length) {
+        console.log(`texture ${index} does not have any pixels`)
+        return
+    }
+    if ([undefined, null, ""].includes(format) || [undefined, null, ""].includes(width) || [undefined, null, ""].includes(height)) {
+        console.log(`texture ${index} is missing width/height/format data`)
+        return
+    }
+    let img = new Jimp(width, height, (err, image) => {
+        for (let i = 0; i < height; i++) {
+            for (j = 0; j < width; j++) {
+                let ind = i * width + j
+                let p = null
+                let color = null
+                if ([512, 513].includes(format)) {
+                    p = palette[pixels[ind]]
+                    color = Jimp.rgbaToInt(p[0], p[1], p[2], p[3])
+                } else if ([1024, 1025].includes(format)) {
+                    p = pixels[ind]
+                    color = Jimp.rgbaToInt(p, p, p, 255)
+                } else if (format == 3) {
+                    p = pixels[ind]
+                    color = Jimp.rgbaToInt(p?.[0] ?? 0, p?.[1] ?? 0, p?.[2] ?? 0, p?.[3] ?? 0)
+                }
+                let x = 0
+
+                //certain textures in the pc release are scrambled and must use the following code to be drawn correctly
+                if (i % 2 == 1 && [49, 58, 99, 924, 966, 972, 991, 992, 1000, 1048, 1064].includes(index)) {
+                    if (Math.floor(j / 8) % 2 == 0) {
+                        x = 8
+                    } else {
+                        x = -8
+                    }
+                }
+                image.setPixelColor(color, j + x, height - 1 - i);
+
+            }
+        }
+
+        img.write('textures/' + index + '.png', (err) => {
+            if (err) throw err;
+        });
+    })
+
+}
+
+exports.read_texture = async function ({ path } = {}) {
+    await Jimp.read(path).then(image => {
+        let texture = {
+            width: texdata[r].width,
+            height: texdata[r].height,
+            format: texdata[r].format,
+            palette_offset: 0,
+            palette: [],
+            pages: 1,
+            page_width: image.bitmap.width,
+            page_height: image.bitmap.height,
+            page_offset: 28,
+            pixels: []
+        }
+        for (i = texture.height - 1; i >= 0; i--) {
+            for (j = 0; j < texture.width; j++) {
+                let color = Object.values(Jimp.intToRGBA(image.getPixelColor(j, i)))
+                if ([512, 513].includes(texture.format)) { //build palette
+                    let pindex = null
+                    texture.palette.forEach((p, index) => {
+                        if (p[0] == color[0] && p[1] == color[1] && p[2] == color[2] && p[3] == color[3]) {
+                            pindex = index
+                        }
+                    })
+                    if (pindex == null && ((texture.format == 512 && texture.palette.length < 16) || (texture.format == 513 && texture.palette.length < 256))) {
+                        texture.palette.push(color)
+                        texture.pixels.push(texture.palette.length - 1)
+                    } else {
+                        if (pindex == null) {
+                            pindex = 0
+                        }
+                        texture.pixels.push(pindex)
+                    }
+                } else if (texture.format == 1024) {
+                    texture.pixels.push(Math.floor(color[0] / 16) * 16)
+                } else if (texture.format == 1025) {
+                    texture.pixels.push(color[0])
+                } else if (texture.format == 3) {
+                    texture.pixels.push(color)
+                }
+            }
+        }
+
+        return texture
+    })
+}
+
+
