@@ -1,5 +1,4 @@
 const Jimp = require('jimp');
-
 exports.highlight = function ({ cursor, hl } = {}) {
     //this function is called whenever an address need to be 'highlighted' because it is a pointer
     //every model begins with a pointer map where each bit represents 4 bytes in the following model 
@@ -1165,7 +1164,6 @@ exports.read_block = function ({ file, arr } = {}) {
     for (let i = 0; i < asset_count; i++) {
         for (let j = 0; j < arr.length; j++) {
             const asset_start = file.readUInt32BE(cursor)
-            console.log(asset_start)
             cursor += 4
             let asset_end = file.readUInt32BE(cursor)
             if (!asset_end) {
@@ -1513,51 +1511,43 @@ exports.write_pixels = function ({ pixels, format } = {}) {
     return buffer
 }
 
-exports.draw_texture = function ({ pixels, palette, width, height, format, index } = {}) {
+exports.draw_texture = async function ({ pixels, palette, width, height, format, path } = {}) {
     if (!pixels.length) {
-        console.log(`texture ${index} does not have any pixels`)
+        console.log(`texture ${path} does not have any pixels`)
         return
     }
     if ([undefined, null, ""].includes(format) || [undefined, null, ""].includes(width) || [undefined, null, ""].includes(height)) {
-        console.log(`texture ${index} is missing width/height/format data`)
+        console.log(`texture ${path} is missing width/height/format data`)
         return
     }
-    let img = new Jimp(width, height, (err, image) => {
-        for (let i = 0; i < height; i++) {
-            for (j = 0; j < width; j++) {
-                let ind = i * width + j
-                let p = null
-                let color = null
-                if ([512, 513].includes(format)) {
-                    p = palette[pixels[ind]]
-                    color = Jimp.rgbaToInt(p?.[0] ?? 0, p?.[1] ?? 0, p?.[2] ?? 0, p?.[3] ?? 0)
-                } else if ([1024, 1025].includes(format)) {
-                    p = pixels[ind]
-                    color = Jimp.rgbaToInt(p, p, p, 255)
-                } else if (format == 3) {
-                    p = pixels[ind]
-                    color = Jimp.rgbaToInt(p?.[0] ?? 0, p?.[1] ?? 0, p?.[2] ?? 0, p?.[3] ?? 0)
-                }
-                let x = 0
+    const image = new Jimp(width, height)
 
-                //certain textures in the pc release are scrambled and must use the following code to be drawn correctly
-                if (i % 2 == 1 && [49, 58, 99, 924, 966, 972, 991, 992, 1000, 1048, 1064].includes(index)) {
-                    if (Math.floor(j / 8) % 2 == 0) {
-                        x = 8
-                    } else {
-                        x = -8
-                    }
-                }
-                image.setPixelColor(color, j + x, height - 1 - i);
-
+    for (let i = 0; i < height; i++) {
+        for (j = 0; j < width; j++) {
+            let ind = i * width + j
+            let p = null
+            let color = null
+            if ([512, 513].includes(format)) {
+                p = palette[pixels[ind]]
+                color = Jimp.rgbaToInt(p?.[0] ?? 0, p?.[1] ?? 0, p?.[2] ?? 0, p?.[3] ?? 0)
+            } else if ([1024, 1025].includes(format)) {
+                p = pixels[ind]
+                color = Jimp.rgbaToInt(p ?? 0, p ?? 0, p ?? 0, 255)
+            } else if (format == 3) {
+                p = pixels[ind]
+                color = Jimp.rgbaToInt(p?.[0] ?? 0, p?.[1] ?? 0, p?.[2] ?? 0, p?.[3] ?? 0)
             }
+
+            image.setPixelColor(color, j, height - 1 - i);
+
         }
+    }
 
-        img.write('textures/' + index + '.png', (err) => {
-            if (err) throw err;
-        });
-    })
+    // image.write(path, (err) => {
+    //     if (err) throw err;
+    // });
 
+    return image
 }
 
 exports.read_texture = async function ({ path } = {}) {
@@ -1607,9 +1597,10 @@ exports.read_texture = async function ({ path } = {}) {
     })
 }
 
-exports.read_sprite = function ({ buffer } = {}) {
+exports.read_sprite = async function ({ buffer, index } = {}) {
     let cursor = 0
     let sprite = {
+        index,
         width: buffer.readInt16BE(cursor),
         height: buffer.readInt16BE(cursor + 2),
         format: buffer.readInt16BE(cursor + 4),
@@ -1617,10 +1608,11 @@ exports.read_sprite = function ({ buffer } = {}) {
         page_count: buffer.readInt16BE(cursor + 12),
         unk_0: buffer.readInt16BE(cursor + 14),
         unk_1: buffer.readInt32BE(cursor + 16),
-        pages: []
+        pages: [],
     }
-
-
+    if (index == 173) {
+        sprite.width = 192
+    }
     //get pages
     for (i = 0; i < sprite.page_count; i++) {
         let page_start = 20 + i * 8
@@ -1641,13 +1633,27 @@ exports.read_sprite = function ({ buffer } = {}) {
     //get palette
     sprite.palette = exports.read_palette({ buffer: buffer.slice(sprite.palette_offset, buffer.length), format: sprite.format })
 
-    //get pixels
+    const sprite_image = new Jimp(sprite.width, sprite.height);
+    let sprite_pages = []
+    //get pixels from pages and assemble image
     for (let k = 0; k < sprite.page_count; k++) {
         let page = sprite.pages[k]
-        sprite.pages[k].pixels = exports.read_pixels({ buffer: buffer.slice(page.offset, buffer.length), format: sprite.format, pixel_count: page.width * page.height })
+        let pixels = exports.read_pixels({ buffer: buffer.slice(page.offset, buffer.length), format: sprite.format, pixel_count: page.width * page.height })
+
+        const page_image = await exports.draw_texture({ pixels, palette: sprite.palette, width: page.width, height: page.height, format: sprite.format, path: `sprites/${index}_${k}.png` })
+        sprite_pages.push(page_image)
+    }
+    let x = 0, y = 0
+    for (let i = 0; i < sprite_pages.length; i++) {
+        sprite_image.blit(sprite_pages[i], x, y)
+        x += sprite_pages[i].bitmap.width
+        if (x >= sprite.width) {
+            x = 0
+            y += sprite_pages[i].bitmap.height
+        }
     }
 
-    console.log(sprite)
+    sprite_image.write(`sprites/${index}.png`)
 
     return sprite
 }
