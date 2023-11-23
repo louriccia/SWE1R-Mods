@@ -1165,6 +1165,7 @@ exports.read_block = function ({ file, arr } = {}) {
     for (let i = 0; i < asset_count; i++) {
         for (let j = 0; j < arr.length; j++) {
             const asset_start = file.readUInt32BE(cursor)
+            console.log(asset_start)
             cursor += 4
             let asset_end = file.readUInt32BE(cursor)
             if (!asset_end) {
@@ -1313,7 +1314,7 @@ exports.read_spline = function ({ buffer, index } = {}) {
     return spline
 }
 
-exports.write_spline = function ({ spline, index } = {}) {
+exports.write_spline = function ({ spline } = {}) {
     let buffer = Buffer.alloc(16 + spline.points.length * 84)
     let cursor = 0
     cursor = buffer.writeInt32BE(spline.unknown, cursor)
@@ -1381,12 +1382,16 @@ exports.invert_spline = function ({ spline } = {}) {
     return spline
 }
 
-exports.read_palette = function ({ buffer } = {}) {
+exports.read_palette = function ({ buffer, format } = {}) {
+    const format_map = {
+        512: 16,
+        513: 256
+    }
     if (!buffer) {
         return []
     }
     let palette = []
-    for (let cursor = 0; cursor < buffer.length; cursor += 2) {
+    for (let cursor = 0; cursor < format_map[format] * 2; cursor += 2) {
         let color = buffer.readInt16BE(cursor)
         let a = ((color >> 0) & 0x1) * 0xFF
         let b = Math.round((((color >> 1) & 0x1F) / 0x1F) * 255)
@@ -1420,46 +1425,52 @@ exports.write_palette = function ({ palette }) {
     return buffer
 }
 
-exports.read_pixels = function ({ buffer, format } = {}) {
+exports.read_pixels = function ({ buffer, format, pixel_count } = {}) {
     let pixels = []
+    let cursor = 0
     switch (format) {
         case 3:
-            for (let cursor = 0; cursor < buffer.length; cursor += 4) {
+            for (let i = 0; i < pixel_count && cursor < buffer.length; i++) {
                 let r = buffer.readUInt8(cursor)
                 let g = buffer.readUInt8(cursor + 1)
                 let b = buffer.readUInt8(cursor + 2)
                 let a = buffer.readUInt8(cursor + 3)
                 let pixel = [r, g, b, a]
                 pixels.push(pixel)
+                cursor += 4
             }
             break
         case 512:
-            for (let cursor = 0; cursor < buffer.length; cursor++) {
+            for (let i = 0; i < pixel_count && cursor < buffer.length; i++) {
                 let p = buffer.readUInt8(cursor)
                 let pixel_0 = (p >> 4) & 0xF
                 let pixel_1 = p & 0xF
                 pixels.push(pixel_0, pixel_1)
+                cursor++
             }
             break
         case 513:
-            for (let cursor = 0; cursor < buffer.length; cursor++) {
+            for (let i = 0; i < pixel_count && cursor < buffer.length; i++) {
                 let pixel = buffer.readUInt8(cursor)
                 pixels.push(pixel)
+                cursor++
             }
             break
         case 1024:
-            for (let cursor = 0; cursor < buffer.length; cursor++) {
+            for (let i = 0; i < pixel_count && cursor < buffer.length; i++) {
                 let p = buffer.readUInt8(cursor)
                 let pixel_0 = ((p >> 4) & 0xF) * 0x11
                 let pixel_1 = (p & 0xF) * 0x11
                 pixels.push(pixel_0, pixel_1)
+                cursor++
             }
             break
         case 1025:
-            for (let cursor = 0; cursor < buffer.length; cursor++) {
+            for (let i = 0; i < pixel_count && cursor < buffer.length; i++) {
                 let pixel = null
                 pixel = buffer.readUInt8(cursor)
                 pixels.push(pixel)
+                cursor++
             }
             break
     }
@@ -1519,7 +1530,7 @@ exports.draw_texture = function ({ pixels, palette, width, height, format, index
                 let color = null
                 if ([512, 513].includes(format)) {
                     p = palette[pixels[ind]]
-                    color = Jimp.rgbaToInt(p[0], p[1], p[2], p[3])
+                    color = Jimp.rgbaToInt(p?.[0] ?? 0, p?.[1] ?? 0, p?.[2] ?? 0, p?.[3] ?? 0)
                 } else if ([1024, 1025].includes(format)) {
                     p = pixels[ind]
                     color = Jimp.rgbaToInt(p, p, p, 255)
@@ -1594,6 +1605,81 @@ exports.read_texture = async function ({ path } = {}) {
 
         return texture
     })
+}
+
+exports.read_sprite = function ({ buffer } = {}) {
+    let cursor = 0
+    let sprite = {
+        width: buffer.readInt16BE(cursor),
+        height: buffer.readInt16BE(cursor + 2),
+        format: buffer.readInt16BE(cursor + 4),
+        palette_offset: buffer.readInt32BE(cursor + 8),
+        page_count: buffer.readInt16BE(cursor + 12),
+        unk_0: buffer.readInt16BE(cursor + 14),
+        unk_1: buffer.readInt32BE(cursor + 16),
+        pages: []
+    }
+
+
+    //get pages
+    for (i = 0; i < sprite.page_count; i++) {
+        let page_start = 20 + i * 8
+        let page = {
+            width: buffer.readInt16BE(page_start),
+            height: buffer.readInt16BE(page_start + 2),
+            offset: buffer.readInt32BE(page_start + 4)//offset to start of pixel data for page
+        }
+
+        //with some odd sprite widths, page widths need to be corrected to line up pixels
+        if ([513, 1025].includes(sprite.format)) {
+            page.width = (page.width + 0x7) & 0xFFFFFFF8
+        } else if ([512, 1024].includes(sprite.format)) {
+            page.width = (page.width + 0xF) & 0xFFFFFFF0
+        }
+        sprite.pages.push(page)
+    }
+    console.log(sprite)
+    return sprite
+    //get palette
+    sprite.palette = []
+    if (sprite.palette_offset) {
+        for (let i = sprite.offset + sprite.palette_offset; i < sprite.offset + sprite.pages[0].offset; i += 2) {
+            let color = file.readUInt16BE(i)
+            let a = (color >> 0) & 0x1
+            let b = ((color >> 1) & 0x1F) / 0x1F
+            let g = ((color >> 6) & 0x1F) / 0x1F
+            let r = ((color >> 11) & 0x1F) / 0x1F
+            sprite.palette.push([Math.round(r * 255), Math.round(g * 255), Math.round(b * 255), a * 0xFF])
+        }
+    }
+
+    //get pixels
+    for (let k = 0; k < sprite.page_count; k++) {
+        sprite.pages[k].pixels = []
+        for (let i = sprite.offset + sprite.pages[k].offset; i < sprite.offset + sprite.pages[k].offset + sprite.pages[k].width * sprite.pages[k].height || (sprite.format == 3 && i < sprite.offset + sprite.pages[k].offset + sprite.pages[k].width * sprite.pages[k].height * 4); i++) {
+            let pixel = file.readUInt8(i)
+            if ([513, 1025].includes(sprite.format)) {
+                sprite.pages[k].pixels.push(pixel)
+            } else if ([512, 1024].includes(sprite.format)) {
+                pixel_0 = (pixel >> 4) & 0xF
+                pixel_1 = pixel & 0xF
+                if (sprite.format == 1024) {
+                    pixel_0 *= 0x11
+                    pixel_1 *= 0x11
+                }
+                sprite.pages[k].pixels.push(pixel_0, pixel_1)
+            } else if (sprite.format == 3) {
+                let r = pixel
+                let g = file.readUInt8(i + 1)
+                let b = file.readUInt8(i + 2)
+                let a = file.readUInt8(i + 3)
+                pixel = [r, g, b, a]
+                sprite.pages[k].pixels.push(pixel)
+                i += 3
+            }
+        }
+    }
+    out_sprite.sprites.push(sprite)
 }
 
 

@@ -14,8 +14,8 @@ for (let i = 0; i < pixel_buffers.length; i++) {
     let texture =
     {
         ...textures[i],
-        pixels: read_pixels({ buffer: pixel_buffers[i], format: textures[i].format }),
-        palette: read_palette({ buffer: palette_buffers[i] }),
+        pixels: read_pixels({ buffer: pixel_buffers[i], format: textures[i].format, pixel_count: textures[i].width * textures[i].height }),
+        palette: read_palette({ buffer: palette_buffers[i], format: textures[i].format }),
         index: i
     }
 
