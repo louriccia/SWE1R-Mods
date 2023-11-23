@@ -1638,48 +1638,18 @@ exports.read_sprite = function ({ buffer } = {}) {
         }
         sprite.pages.push(page)
     }
-    console.log(sprite)
-    return sprite
     //get palette
-    sprite.palette = []
-    if (sprite.palette_offset) {
-        for (let i = sprite.offset + sprite.palette_offset; i < sprite.offset + sprite.pages[0].offset; i += 2) {
-            let color = file.readUInt16BE(i)
-            let a = (color >> 0) & 0x1
-            let b = ((color >> 1) & 0x1F) / 0x1F
-            let g = ((color >> 6) & 0x1F) / 0x1F
-            let r = ((color >> 11) & 0x1F) / 0x1F
-            sprite.palette.push([Math.round(r * 255), Math.round(g * 255), Math.round(b * 255), a * 0xFF])
-        }
-    }
+    sprite.palette = exports.read_palette({ buffer: buffer.slice(sprite.palette_offset, buffer.length), format: sprite.format })
 
     //get pixels
     for (let k = 0; k < sprite.page_count; k++) {
-        sprite.pages[k].pixels = []
-        for (let i = sprite.offset + sprite.pages[k].offset; i < sprite.offset + sprite.pages[k].offset + sprite.pages[k].width * sprite.pages[k].height || (sprite.format == 3 && i < sprite.offset + sprite.pages[k].offset + sprite.pages[k].width * sprite.pages[k].height * 4); i++) {
-            let pixel = file.readUInt8(i)
-            if ([513, 1025].includes(sprite.format)) {
-                sprite.pages[k].pixels.push(pixel)
-            } else if ([512, 1024].includes(sprite.format)) {
-                pixel_0 = (pixel >> 4) & 0xF
-                pixel_1 = pixel & 0xF
-                if (sprite.format == 1024) {
-                    pixel_0 *= 0x11
-                    pixel_1 *= 0x11
-                }
-                sprite.pages[k].pixels.push(pixel_0, pixel_1)
-            } else if (sprite.format == 3) {
-                let r = pixel
-                let g = file.readUInt8(i + 1)
-                let b = file.readUInt8(i + 2)
-                let a = file.readUInt8(i + 3)
-                pixel = [r, g, b, a]
-                sprite.pages[k].pixels.push(pixel)
-                i += 3
-            }
-        }
+        let page = sprite.pages[k]
+        sprite.pages[k].pixels = exports.read_pixels({ buffer: buffer.slice(page.offset, buffer.length), format: sprite.format, pixel_count: page.width * page.height })
     }
-    out_sprite.sprites.push(sprite)
+
+    console.log(sprite)
+
+    return sprite
 }
 
 
