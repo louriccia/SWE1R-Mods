@@ -6,7 +6,7 @@ if (!fs.existsSync(filePath)) {
 }
 
 const file = fs.readFileSync(filePath)
-const { read_block, read_model } = require('./block')
+const { read_block, read_model } = require('./_block')
 
 if (!fs.existsSync('./models/')) {
     fs.mkdirSync('./models/');
