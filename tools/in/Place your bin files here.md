@@ -1,0 +1,1 @@
+Place all .bin files from `Star Wars Episode I Racer/data/lev01/` into this folder

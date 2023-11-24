@@ -13,13 +13,13 @@ https://ko-fi.com/lightningpirate
 
 ## Tools
 
-For each block, there is an unpack and repack script. Unpack scripts dump the game's bin files into human-readable json structure and png files (for sprites and textures). Repack scripts compile extracted json/png files into game-readable bin format while allowing for replacements and in-place modifications. These tools build off of the work of [JayFoxRox's swe1r-tools](https://github.com/OpenSWE1R/swe1r-tools) and [Olganix's Sw_Racer](https://github.com/Olganix/Sw_Racer/). 
+For each block, there is an unpack and repack script. Unpack scripts dump the game's bin files into human-readable json structure and png files (for sprites and textures). Repack scripts compile extracted json/png files into game-readable bin format while allowing for replacements and modifications. These tools build off of the work of [JayFoxRox's swe1r-tools](https://github.com/OpenSWE1R/swe1r-tools) and [Olganix's Sw_Racer](https://github.com/Olganix/Sw_Racer/). 
 
 ### Requirements
 
 * [node js](https://nodejs.org/en)
 * [jimp](https://www.npmjs.com/package/jimp) package for working with images
-* bin files from `Star Wars Episode I Racer / data / lev01 /` must be copied to their respective folders in tools. (`out_modelblock.bin` goes in `modelblock`, etc.)
+* bin files from `Star Wars Episode I Racer / data / lev01 /` must be place in `in` folder
 
 ### How to use
 

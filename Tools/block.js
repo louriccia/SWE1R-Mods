@@ -60,7 +60,7 @@ exports.read_Anim = function ({ buffer, cursor, model } = {}) {
     return cursor + 4
 }
 
-exports.write_Anim = function ({ buffer, cursor, model } = {}) {
+exports.write_Anim = function ({ buffer, cursor, model, hl } = {}) {
     cursor += buffer.write('Anim', cursor)
     for (let i = 0; i < model.Anim.length; i++) {
         exports.highlight({ cursor, hl })
@@ -68,7 +68,7 @@ exports.write_Anim = function ({ buffer, cursor, model } = {}) {
     }
     exports.highlight({ cursor, hl })
     cursor += 4
-    return cursor + 4
+    return cursor
 }
 
 exports.read_AltN = function ({ buffer, cursor, model } = {}) {
@@ -82,7 +82,7 @@ exports.read_AltN = function ({ buffer, cursor, model } = {}) {
     return cursor + 4
 }
 
-exports.write_AltN = function ({ buffer, cursor, model } = {}) {
+exports.write_AltN = function ({ buffer, cursor, model, hl } = {}) {
     cursor += buffer.write('AltN', cursor)
     for (let i = 0; i < model.AltN.length; i++) {
         exports.highlight({ cursor, hl })
@@ -136,7 +136,7 @@ exports.write_header = function ({ buffer, cursor, model, hl } = {}) {
     cursor = buffer.writeInt32BE(-1, cursor)
 
     if (model.Data) {
-        cursor = exports.write_Data({ buffer, cursor, model, hl })
+        cursor = exports.write_Data({ buffer, cursor, model })
     }
     if (model.Anim) {
         cursor = exports.write_Anim({ buffer, cursor, model, hl })
@@ -146,6 +146,7 @@ exports.write_header = function ({ buffer, cursor, model, hl } = {}) {
     }
 
     cursor += buffer.write('HEnd', cursor)
+    return cursor
 }
 
 exports.read_mat = function ({ buffer, cursor } = {}) {
@@ -604,14 +605,14 @@ exports.write_collision_triggers = function ({ buffer, cursor, triggers, hl } = 
         let trigger = triggers[i]
         exports.highlight({ cursor, hl })
         cursor = buffer.writeInt32BE(cursor + 4, cursor)
-        cursor = buffer.writeFloatBE(trigger.x * xStretch + xOffset, cursor)
-        cursor = buffer.writeFloatBE(trigger.y * yStretch + yOffset, cursor)
-        cursor = buffer.writeFloatBE(trigger.z * zStretch + zOffset + trigger.y * slope, cursor)
+        cursor = buffer.writeFloatBE(trigger.x, cursor)
+        cursor = buffer.writeFloatBE(trigger.y, cursor)
+        cursor = buffer.writeFloatBE(trigger.z, cursor)
         cursor = buffer.writeFloatBE(trigger.vx, cursor)
         cursor = buffer.writeFloatBE(trigger.vy, cursor)
         cursor = buffer.writeFloatBE(trigger.vz, cursor)
-        cursor = buffer.writeFloatBE(trigger.width * xStretch, cursor)
-        cursor = buffer.writeFloatBE(trigger.height * zStretch, cursor)
+        cursor = buffer.writeFloatBE(trigger.width, cursor)
+        cursor = buffer.writeFloatBE(trigger.height, cursor)
         //triggerkeeper.push({ original: trigger.target, address: cursor })
         exports.highlight({ cursor, hl }) //trigger.target
         cursor += 4
@@ -664,7 +665,6 @@ exports.read_collision_data = function ({ buffer, cursor } = {}) {
 }
 
 exports.write_collision_data = function ({ buffer, cursor, data, hl } = {}) {
-    buffer.writeInt32BE(cursor, headstart + 4)
     cursor = buffer.writeInt16BE(data.unk, cursor) //data.unk
     cursor = buffer.writeUInt8(data.fog.flag, cursor) //data.fog.flag
     cursor = buffer.writeUInt8(data.fog.r, cursor) //data.fog.r
@@ -689,10 +689,10 @@ exports.write_collision_data = function ({ buffer, cursor, data, hl } = {}) {
     cursor = buffer.writeFloatBE(data.lights.unk5, cursor) //data.lights.unk5
     cursor = buffer.writeInt32BE(data.flags, cursor) //data.flags
     cursor = buffer.writeInt32BE(data.unk2, cursor) //data.unk2
-    cursor = buffer.writeInt32BE(data.unload, cursor) //data.unload
-    cursor = buffer.writeInt32BE(data.load, cursor)//data.load
+    cursor = buffer.writeUInt32BE(data.unload, cursor) //data.unload
+    cursor = buffer.writeUInt32BE(data.load, cursor)//data.load
 
-    cursor = exports.write_collision_triggers({ buffer, cursor, trigger: data.triggers, hl })
+    cursor = exports.write_collision_triggers({ buffer, cursor, triggers: data.triggers, hl })
 
     return cursor
 }
@@ -755,7 +755,7 @@ exports.read_visual_index_buffer = function ({ buffer, cursor } = {}) {
     return index_buffer
 }
 
-exports.write_visual_index_buffer = function ({ buffer, cursor, index_buffer } = {}) {
+exports.write_visual_index_buffer = function ({ buffer, cursor, index_buffer, hl } = {}) {
     if (!index_buffer || !index_buffer.length) {
         return cursor
     }
@@ -822,36 +822,35 @@ exports.read_visual_vert_buffer = function ({ buffer, cursor, count } = {}) {
     return vert_buffer
 }
 
-exports.write_visual_vert_buffer = function ({ buffer, cursor } = {}) {
-    buffer.writeInt32BE(cursor, headstart + 52)
-    for (let i = 0; i < buffer.length; i++) {
-        if (bufferpointers[i]) {
-            buffer.writeInt32BE(cursor, bufferpointers[i])
-        }
+exports.write_visual_vert_buffer = function ({ buffer, cursor, vert_buffer } = {}) {
+    for (let i = 0; i < vert_buffer.length; i++) {
+        // if (bufferpointers[i]) {
+        //     buffer.writeInt32BE(cursor, bufferpointers[i])
+        // }
 
-        let x = buffer[i].x
-        let y = buffer[i].y
-        let z = buffer[i].z
+        let x = vert_buffer[i].x
+        let y = vert_buffer[i].y
+        let z = vert_buffer[i].z
         // x = x * (rep.extension == 'Trak' ? xStretch : 1) + (rep.extension == 'Trak' ? xOffset : 0)
         // y = y * (rep.extension == 'Trak' ? yStretch : 1) + (rep.extension == 'Trak' ? yOffset : 0)
         // z = z * (rep.extension == 'Trak' ? zStretch : 1) + (rep.extension == 'Trak' ? zOffset : 0) + y * slope
 
-        exports.adjustBB('x', x, bb)
-        exports.adjustBB('y', y, bb)
-        exports.adjustBB('z', z, bb)
+        // exports.adjustBB('x', x, bb)
+        // exports.adjustBB('y', y, bb)
+        // exports.adjustBB('z', z, bb)
 
-        cursor = buffer.writeInt16BE(Math.min(!skybox ? x : buffer[i].x), cursor)
-        cursor = buffer.writeInt16BE(Math.min(!skybox ? y : buffer[i].y), cursor)
-        cursor = buffer.writeInt16BE(Math.min(!skybox ? z : buffer[i].z), cursor)
+        cursor = buffer.writeInt16BE(vert_buffer[i].x, cursor)
+        cursor = buffer.writeInt16BE(vert_buffer[i].y, cursor)
+        cursor = buffer.writeInt16BE(vert_buffer[i].z, cursor)
         cursor += 2
 
-        cursor = buffer.writeInt16BE(buffer[i].uv_x, cursor)
-        cursor = buffer.writeInt16BE(buffer[i].uv_y, cursor)
+        cursor = buffer.writeInt16BE(vert_buffer[i].uv_x, cursor)
+        cursor = buffer.writeInt16BE(vert_buffer[i].uv_y, cursor)
 
-        cursor = buffer.writeUInt8(buffer[i].v_color[0], cursor)
-        cursor = buffer.writeUInt8(buffer[i].v_color[1], cursor)
-        cursor = buffer.writeUInt8(buffer[i].v_color[2], cursor)
-        cursor = buffer.writeUInt8(buffer[i].v_color[3], cursor)
+        cursor = buffer.writeUInt8(vert_buffer[i].v_color[0], cursor)
+        cursor = buffer.writeUInt8(vert_buffer[i].v_color[1], cursor)
+        cursor = buffer.writeUInt8(vert_buffer[i].v_color[2], cursor)
+        cursor = buffer.writeUInt8(vert_buffer[i].v_color[3], cursor)
     }
     return cursor
 }
@@ -888,59 +887,59 @@ exports.write_mesh_group = function ({ buffer, cursor, mesh_group, hl } = {}) {
     cursor += 64
 
     if (mesh_group.collision.vert_strips) {
-        exports.highlight(headstart + 36, hl)
+        exports.highlight({ cursor: headstart + 36, hl })
         buffer.writeUInt32BE(cursor, headstart + 36)
         cursor = exports.write_collision_vert_strips({ buffer, cursor, vert_strips: mesh_group.collision.vert_strips })
     }
     if (mesh_group.collision.vert_buffer) {
-        exports.highlight(headstart + 44, hl)
+        exports.highlight({ cursor: headstart + 44, hl })
         buffer.writeUInt32BE(cursor, headstart + 44)
         cursor = exports.write_collision_vert_buffer({ buffer, cursor, vert_buffer: mesh_group.collision.vert_buffer })
     }
     if (mesh_group.visuals.material) {
-        exports.highlight(headstart + 0, hl)
+        exports.highlight({ cursor: headstart + 0, hl })
         buffer.writeUInt32BE(cursor, headstart + 0)
         cursor = exports.write_mat({ buffer, cursor, mat: mesh_group.mat })
     }
     if (mesh_group.visuals.index_buffer) {
         exports.highlight({ cursor: headstart + 0, hl })
         buffer.writeInt32BE(cursor, headstart + 48)
-        cursor = exports.write_visual_index_buffer({ buffer, cursor, index_buffer: mesh_group.visuals.index_buffer })
+        cursor = exports.write_visual_index_buffer({ buffer, cursor, index_buffer: mesh_group.visuals.index_buffer, hl })
     }
     if (mesh_group.visuals.vert_buffer) {
-        exports.highlight(headstart + 52, hl)
+        exports.highlight({ cursor: headstart + 52, hl })
         buffer.writeUInt32BE(cursor, headstart + 52)
-        cursor = exports.write_visual_vert_buffer({ buffer, cursor, buffer: mesh_group.visuals.vert_buffer })
+        cursor = exports.write_visual_vert_buffer({ buffer, cursor, vert_buffer: mesh_group.visuals.vert_buffer })
     }
     if (mesh_group.collision.data) {
-        exports.highlight(headstart + 4, hl)
+        exports.highlight({ cursor: headstart + 4, hl })
         buffer.writeUInt32BE(cursor, headstart + 4)
         cursor = exports.write_collision_data({ buffer, cursor, data: mesh_group.collision.data, hl })
     }
 
     //adjust minmax
-    if (rep.extension == 'Trak') {
-        buffer.writeFloatBE(bb.min_x, minmax)
-        buffer.writeFloatBE(bb.min_y, minmax + 4)
-        buffer.writeFloatBE(bb.min_z, minmax + 8)
-        buffer.writeFloatBE(bb.max_x, minmax + 12)
-        buffer.writeFloatBE(bb.max_y, minmax + 16)
-        buffer.writeFloatBE(bb.max_z, minmax + 20)
+    // if (rep.extension == 'Trak') {
+    //     buffer.writeFloatBE(bb.min_x, minmax)
+    //     buffer.writeFloatBE(bb.min_y, minmax + 4)
+    //     buffer.writeFloatBE(bb.min_z, minmax + 8)
+    //     buffer.writeFloatBE(bb.max_x, minmax + 12)
+    //     buffer.writeFloatBE(bb.max_y, minmax + 16)
+    //     buffer.writeFloatBE(bb.max_z, minmax + 20)
 
-        adjustBB('x', bb.min_x, parent.bb)
-        adjustBB('x', bb.max_x, parent.bb)
-        adjustBB('y', bb.min_y, parent.bb)
-        adjustBB('y', bb.max_y, parent.bb)
-        adjustBB('z', bb.min_z, parent.bb)
-        adjustBB('z', bb.max_z, parent.bb)
+    //     adjustBB('x', bb.min_x, parent.bb)
+    //     adjustBB('x', bb.max_x, parent.bb)
+    //     adjustBB('y', bb.min_y, parent.bb)
+    //     adjustBB('y', bb.max_y, parent.bb)
+    //     adjustBB('z', bb.min_z, parent.bb)
+    //     adjustBB('z', bb.max_z, parent.bb)
 
-        buffer.writeFloatBE(parent.bb.min_x, parent.bb.address)
-        buffer.writeFloatBE(parent.bb.min_y, parent.bb.address + 4)
-        buffer.writeFloatBE(parent.bb.min_z, parent.bb.address + 8)
-        buffer.writeFloatBE(parent.bb.max_x, parent.bb.address + 12)
-        buffer.writeFloatBE(parent.bb.max_y, parent.bb.address + 16)
-        buffer.writeFloatBE(parent.bb.max_z, parent.bb.address + 20)
-    }
+    //     buffer.writeFloatBE(parent.bb.min_x, parent.bb.address)
+    //     buffer.writeFloatBE(parent.bb.min_y, parent.bb.address + 4)
+    //     buffer.writeFloatBE(parent.bb.min_z, parent.bb.address + 8)
+    //     buffer.writeFloatBE(parent.bb.max_x, parent.bb.address + 12)
+    //     buffer.writeFloatBE(parent.bb.max_y, parent.bb.address + 16)
+    //     buffer.writeFloatBE(parent.bb.max_z, parent.bb.address + 20)
+    // }
 
     return cursor
 }
@@ -949,11 +948,11 @@ exports.read_node = function ({ buffer, cursor, model } = {}) {
     let node = {
         id: cursor,
         head: [
-            buffer.readInt32BE(cursor),
-            buffer.readInt32BE(cursor + 4),
-            buffer.readInt32BE(cursor + 8),
-            buffer.readInt32BE(cursor + 12),
-            buffer.readInt32BE(cursor + 16)
+            buffer.readUInt32BE(cursor),
+            buffer.readUInt32BE(cursor + 4),
+            buffer.readUInt32BE(cursor + 8),
+            buffer.readUInt32BE(cursor + 12),
+            buffer.readUInt32BE(cursor + 16)
         ],
         children: []
     }
@@ -981,10 +980,24 @@ exports.read_node = function ({ buffer, cursor, model } = {}) {
             break
         case 53349:
             node.xyz = {
+                ...node.xyz,
+                ax: buffer.readFloatBE(cursor + 28),
+                ay: buffer.readFloatBE(cursor + 32),
+                az: buffer.readFloatBE(cursor + 36),
+                bx: buffer.readFloatBE(cursor + 40),
+                by: buffer.readFloatBE(cursor + 44),
+                bz: buffer.readFloatBE(cursor + 48),
+                cx: buffer.readFloatBE(cursor + 52),
+                cy: buffer.readFloatBE(cursor + 56),
+                cz: buffer.readFloatBE(cursor + 60),
+                x: buffer.readFloatBE(cursor + 64),
+                y: buffer.readFloatBE(cursor + 68),
+                z: buffer.readFloatBE(cursor + 72),
                 x1: buffer.readFloatBE(cursor + 76),
                 y1: buffer.readFloatBE(cursor + 80),
                 z1: buffer.readFloatBE(cursor + 84)
             }
+            break
         case 53348:
             node.xyz = {
                 ...node.xyz,
@@ -1032,6 +1045,7 @@ exports.read_node = function ({ buffer, cursor, model } = {}) {
     for (let i = 0; i < child_count; i++) {
         let child_address = buffer.readUInt32BE(child_start + i * 4)
         if (!child_address) {
+            node.children.push(null)
             continue
         }
         if (mesh_group) {
@@ -1044,20 +1058,20 @@ exports.read_node = function ({ buffer, cursor, model } = {}) {
     return node
 }
 
-exports.write_node = function ({ buffer, cursor, node } = {}) {
+exports.write_node = function ({ buffer, cursor, node, hl } = {}) {
 
-    cursor = buffer.writeInt32BE(head[0], cursor)
-    cursor = buffer.writeInt32BE(head[1], cursor)
-    cursor = buffer.writeInt32BE(head[2], cursor)
-    cursor = buffer.writeInt32BE(head[3], cursor)
-    cursor = buffer.writeInt32BE(head[4], cursor)
-    cursor = buffer.writeInt32BE(node.children.length, cursor)
+    cursor = buffer.writeUInt32BE(node.head[0], cursor)
+    cursor = buffer.writeUInt32BE(node.head[1], cursor)
+    cursor = buffer.writeUInt32BE(node.head[2], cursor)
+    cursor = buffer.writeUInt32BE(node.head[3], cursor)
+    cursor = buffer.writeUInt32BE(node.head[4], cursor)
+    cursor = buffer.writeUInt32BE(node.children.length, cursor)
     exports.highlight({ cursor, hl })
     let child_list_addr_addr = cursor
     cursor += 4
 
     let mesh_group = false
-    switch (head[0]) {
+    switch (node.head[0]) {
         case 12388:
             mesh_group = true
             cursor = buffer.writeFloatBE(node.min_x, cursor)
@@ -1131,9 +1145,21 @@ exports.write_node = function ({ buffer, cursor, node } = {}) {
 
     //write children
     for (let c = 0; c < node.children.length; c++) {
-        buffer.writeUInt32BE(cursor, child_list_addr + c * 4)
+
         let child = node.children[c]
-        cursor = exports.write_node({ buffer, cursor, node: child })
+
+        //remove later
+        if (child === null) {
+            buffer.writeUInt32BE(0, child_list_addr + c * 4)
+            continue
+        }
+
+        buffer.writeUInt32BE(cursor, child_list_addr + c * 4)
+        if (mesh_group) {
+            cursor = exports.write_mesh_group({ buffer, cursor, mesh_group: child, hl })
+        } else {
+            cursor = exports.write_node({ buffer, cursor, node: child, hl })
+        }
     }
 
     return cursor
@@ -1148,14 +1174,14 @@ exports.read_model = function ({ buffer, index } = {}) {
 }
 
 exports.write_model = function ({ model } = {}) {
-    let buffer = Buffer.alloc(1000000)
+    let buffer = Buffer.alloc(8000000)
     let hl = Buffer.alloc(1000000)
     let cursor = 0
     cursor = exports.write_header({ buffer, cursor, hl, model })
     for (let i = 0; i < model.nodes.length; i++) {
         cursor = exports.write_node({ buffer, cursor, hl, node: model.nodes[i] })
     }
-    return cursor
+    return [hl.subarray(0, Math.ceil(cursor / (32 * 4)) * 4), buffer.subarray(0, cursor)]
 }
 
 exports.read_block = function ({ file, arr } = {}) {
@@ -1169,7 +1195,7 @@ exports.read_block = function ({ file, arr } = {}) {
             if (!asset_end) {
                 asset_end = file.readUInt32BE(cursor + 4) //for textureblock we need to seek forward after blank offsets
             }
-            const asset = file.slice(asset_start, asset_end)
+            const asset = file.subarray(asset_start, asset_end)
             if (arr[j]) {
                 arr[j].push(asset_start ? asset : null)
             }
@@ -1322,7 +1348,7 @@ exports.write_spline = function ({ spline } = {}) {
     for (let i = 0; i < spline.points.length; i++) {
         cursor = exports.write_spline_point({ buffer, cursor, point: spline.points[i] })
     }
-    return buffer.slice(0, cursor) //cut off any excess bytes
+    return buffer.subarray(0, cursor) //cut off any excess bytes
 }
 
 exports.invert_spline = function ({ spline } = {}) {
@@ -1542,10 +1568,9 @@ exports.draw_texture = async function ({ pixels, palette, width, height, format,
 
         }
     }
-
-    // image.write(path, (err) => {
-    //     if (err) throw err;
-    // });
+    if (path) {
+        image.write(path)
+    }
 
     return image
 }
@@ -1631,14 +1656,14 @@ exports.read_sprite = async function ({ buffer, index } = {}) {
         sprite.pages.push(page)
     }
     //get palette
-    sprite.palette = exports.read_palette({ buffer: buffer.slice(sprite.palette_offset, buffer.length), format: sprite.format })
+    sprite.palette = exports.read_palette({ buffer: buffer.subarray(sprite.palette_offset, buffer.length), format: sprite.format })
 
     const sprite_image = new Jimp(sprite.width, sprite.height);
     let sprite_pages = []
     //get pixels from pages and assemble image
     for (let k = 0; k < sprite.page_count; k++) {
         let page = sprite.pages[k]
-        let pixels = exports.read_pixels({ buffer: buffer.slice(page.offset, buffer.length), format: sprite.format, pixel_count: page.width * page.height })
+        let pixels = exports.read_pixels({ buffer: buffer.subarray(page.offset, buffer.length), format: sprite.format, pixel_count: page.width * page.height })
 
         const page_image = await exports.draw_texture({ pixels, palette: sprite.palette, width: page.width, height: page.height, format: sprite.format, path: `sprites/${index}_${k}.png` })
         sprite_pages.push(page_image)

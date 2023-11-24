@@ -7,7 +7,7 @@ if (fs.existsSync('../splineblock/out_splineblock.json')) {
 //gather model jsons from folder (output by modelblock_unpack.js)
 let replacements = []
 for (r = 0; r < 323; r++) {
-    if (fs.existsSync('rep/' + r + '.json')) {
+    if (fs.existsSync('models/rep/' + r + '.json')) {
         console.log("found " + r + " replacement")
         replacements[r] = new Promise((resolve, reject) => {
             fs.readFile('rep/' + r + '.json', async (err, data) => {

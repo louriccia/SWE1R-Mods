@@ -2,13 +2,19 @@ const fs = require('fs');
 const filePath = './in/out_spriteblock.bin'
 
 if (!fs.existsSync(filePath)) {
-  throw new Error(`File not found: ${filePath}`);
+  console.log(`File not found: ${filePath}\nPlease provide the out_spriteblock.bin file from your game's data/lev01/ folder in the ./in folder`)
+  return
 }
 
 const file = fs.readFileSync(filePath) //this is the file located in the game's data/lev01/ folder
-const { read_block, read_sprite } = require('../block');
+const { read_block, read_sprite } = require('./block');
 
 let [sprite_buffers] = read_block({ file, arr: [[]] })
+
+if (!fs.existsSync('./sprites/')) {
+  fs.mkdirSync('./sprites/');
+  fs.mkdirSync('./sprites/rep');
+}
 
 for (let i = 0; i < sprite_buffers.length; i++) {
   let buffer = sprite_buffers[i]
@@ -18,4 +24,4 @@ for (let i = 0; i < sprite_buffers.length; i++) {
   });
 }
 
-console.log(`successfully unpacked ${sprite_buffers.length} textures to sprites/`)
+console.log(`successfully unpacked ${sprite_buffers.length} sprites to sprites/`)

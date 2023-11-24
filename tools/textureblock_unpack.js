@@ -1,33 +1,44 @@
 const fs = require('fs');
-const filePath = './in/pc/out_textureblock.bin'
+const filePath = './in/out_textureblock.bin'
 
 if (!fs.existsSync(filePath)) {
-    throw new Error(`File not found: ${filePath}`);
+  console.log(`File not found: ${filePath}\nPlease provide the out_textureblock.bin file from your game's data/lev01/ folder in the ./in folder`)
+  return
 }
 
 const file = fs.readFileSync(filePath) //this is the file located in the game's data/lev01/ folder
-const { read_pixels, read_palette, draw_texture, read_block } = require('../block');
-const { textures } = require('../textures')
+const { read_pixels, read_palette, draw_texture, read_block } = require('./block');
+const { textures } = require('./_textures')
 let [pixel_buffers, palette_buffers] = read_block({ file, arr: [[], []] })
 
-for (let i = 0; i < pixel_buffers.length; i++) {
-    let texture =
-    {
-        ...textures[i],
-        pixels: read_pixels({ buffer: pixel_buffers[i], format: textures[i].format, pixel_count: textures[i].width * textures[i].height }),
-        palette: read_palette({ buffer: palette_buffers[i], format: textures[i].format }),
-        index: i
-    }
-
-    draw_texture(
-        {
-            ...texture
-        }
-    )
-    fs.writeFile(`textures/${i}.json`, JSON.stringify(texture), (err) => {
-        if (err) console.error(err)
-    })
+if (!fs.existsSync('./textures/')) {
+  fs.mkdirSync('./textures/');
+  fs.mkdirSync('./textures/rep');
 }
+
+for (let i = 0; i < pixel_buffers.length; i++) {
+  let texture = {
+    ...textures[i],
+    pixels: read_pixels({ buffer: pixel_buffers[i], format: textures[i].format, pixel_count: textures[i].width * textures[i].height }),
+    palette: read_palette({ buffer: palette_buffers[i], format: textures[i].format }),
+    index: i
+  }
+
+  draw_texture(
+    {
+      ...texture,
+      path: `textures/${i}.png`
+    }
+  )
+
+
+
+  fs.writeFile(`textures/${i}.json`, JSON.stringify(texture), (err) => {
+    if (err) console.error(err)
+  })
+}
+
+console.log(`successfully unpacked ${pixel_buffers.length} textures to textures/`)
 
 
 /*

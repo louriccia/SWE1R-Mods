@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { write_block, write_spline } = require('../block');
+const { write_block, write_spline } = require('./block');
 
 //gather spline jsons from folder (output by splineblock_unpack.js)
 let replacements = []

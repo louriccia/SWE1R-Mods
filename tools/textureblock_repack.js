@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { read_texture, write_pixels, write_palette, write_block } = require('../block');
+const { read_texture, write_pixels, write_palette, write_block } = require('./block');
 
 let replacements = []
 for (r = 0; r < 1648; r++) {

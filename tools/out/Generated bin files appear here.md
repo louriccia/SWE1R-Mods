@@ -1,0 +1,1 @@
+All repack scripts should generate new .bin files in this folder
