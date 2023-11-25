@@ -161,7 +161,7 @@ exports.read_mat = function ({ buffer, cursor } = {}) {
     return mat
 }
 
-exports.write_mat = function ({ buffer, cursor, mat } = {}) {
+exports.write_mat = function ({ buffer, cursor, mat, hl } = {}) {
     if (!mat) {
         return cursor
     }
@@ -174,10 +174,11 @@ exports.write_mat = function ({ buffer, cursor, mat } = {}) {
     cursor += 4
     if (mat.texture) {
         buffer.writeUInt32BE(cursor, mat_addr + 8)
-        cursor = exports.write_mat_texture({ buffer, cursor, texture: mat.texture })
+        cursor = exports.write_mat_texture({ buffer, cursor, texture: mat.texture, hl })
     }
     if (mat.unk) {
         buffer.writeUInt32BE(cursor, mat_addr + 12)
+        console.log('writing mat unk at', cursor, mat_addr + 12)
         cursor = exports.write_mat_unk({ buffer, cursor, unk: mat.unk })
     }
     return cursor
@@ -224,7 +225,7 @@ exports.read_mat_texture = function ({ buffer, cursor } = {}) {
     return mat
 }
 
-exports.write_mat_texture = function ({ buffer, cursor, texture } = {}) {
+exports.write_mat_texture = function ({ buffer, cursor, texture, hl } = {}) {
     if (!texture) {
         return cursor
     }
@@ -243,14 +244,14 @@ exports.write_mat_texture = function ({ buffer, cursor, texture } = {}) {
     cursor = buffer.writeInt16BE(texture.unk8, cursor)
 
     let unk_pointer = cursor
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 7; i++) {
         exports.highlight({ cursor, hl })
         cursor += 4
     }
 
     cursor = buffer.writeInt16BE(texture.unk9, cursor)      //2560, 2815 is used when cursor index is blank
     cursor = buffer.writeInt16BE(texture.tex_index, cursor)
-
+    cursor += 4
     for (let i = 0; i < texture.unk_pointers.length; i++) {
         let pointer = texture.unk_pointers[i]
 
@@ -302,8 +303,7 @@ exports.read_mat_unk = function ({ buffer, cursor } = {}) {
 }
 
 exports.write_mat_unk = function ({ buffer, cursor, unk } = {}) {
-
-    cursor = buffer.readInt16BE(unk.unk0, cursor) //always 0
+    cursor = buffer.writeInt16BE(unk.unk0, cursor) //always 0
     cursor = buffer.writeInt16BE(unk.unk1, cursor) //0, 1, 8, 9   
     cursor = buffer.writeInt16BE(unk.unk2, cursor) //1, 2
     cursor = buffer.writeInt16BE(unk.unk3, cursor) //287, 513, 799, 1055, 1537, 7967
@@ -766,7 +766,7 @@ exports.write_visual_index_buffer = function ({ buffer, cursor, index_buffer, hl
     for (let i = 0; i < index_buffer.length; i++) {
         let index = index_buffer[i]
         let type = index.type
-        cursor = buffer.writeUInt8(type, cursor + v)
+        buffer.writeUInt8(type, cursor + v)
         switch (type) {
             case 1:
                 buffer.writeUInt8(index.unk1, cursor + v + 1)
@@ -805,16 +805,16 @@ exports.read_visual_vert_buffer = function ({ buffer, cursor, count } = {}) {
     for (v = 0; v < count; v++) {
         vert_buffer.push(
             {
-                x: buffer.readInt16BE(cursor + v),
-                y: buffer.readInt16BE(cursor + v + 2),
-                z: buffer.readInt16BE(cursor + v + 4),
-                uv_x: buffer.readInt16BE(cursor + v + 8),
-                uv_y: buffer.readInt16BE(cursor + v + 10),
+                x: buffer.readInt16BE(cursor + v * 16),
+                y: buffer.readInt16BE(cursor + v * 16 + 2),
+                z: buffer.readInt16BE(cursor + v * 16 + 4),
+                uv_x: buffer.readInt16BE(cursor + v * 16 + 8),
+                uv_y: buffer.readInt16BE(cursor + v * 16 + 10),
                 v_color: [
-                    buffer.readUInt8(cursor + v + 12),
-                    buffer.readUInt8(cursor + v + 13),
-                    buffer.readUInt8(cursor + v + 14),
-                    buffer.readUInt8(cursor + v + 15)
+                    buffer.readUInt8(cursor + v * 16 + 12),
+                    buffer.readUInt8(cursor + v * 16 + 13),
+                    buffer.readUInt8(cursor + v * 16 + 14),
+                    buffer.readUInt8(cursor + v * 16 + 15)
                 ]
             }
         )
@@ -838,7 +838,6 @@ exports.write_visual_vert_buffer = function ({ buffer, cursor, vert_buffer } = {
         // exports.adjustBB('x', x, bb)
         // exports.adjustBB('y', y, bb)
         // exports.adjustBB('z', z, bb)
-
         cursor = buffer.writeInt16BE(vert_buffer[i].x, cursor)
         cursor = buffer.writeInt16BE(vert_buffer[i].y, cursor)
         cursor = buffer.writeInt16BE(vert_buffer[i].z, cursor)
@@ -882,39 +881,55 @@ exports.read_mesh_group = function ({ buffer, cursor } = {}) {
     return mesh
 }
 
-exports.write_mesh_group = function ({ buffer, cursor, mesh_group, hl } = {}) {
+exports.write_mesh_group = function ({ buffer, cursor, mesh, hl } = {}) {
     let headstart = cursor
+    buffer.writeFloatBE(mesh.min_x, cursor + 8)
+    buffer.writeFloatBE(mesh.min_y, cursor + 12)
+    buffer.writeFloatBE(mesh.min_z, cursor + 16)
+    buffer.writeFloatBE(mesh.max_x, cursor + 20)
+    buffer.writeFloatBE(mesh.max_y, cursor + 24)
+    buffer.writeFloatBE(mesh.max_z, cursor + 28)
+    buffer.writeInt16BE(mesh.vert_strip_count, cursor + 32)
+    buffer.writeInt16BE(mesh.vert_strip_default, cursor + 34)
+    buffer.writeInt16BE(mesh.collision.vert_buffer.length, cursor + 56)
+    buffer.writeInt16BE(mesh.visuals.vert_buffer.length, cursor + 58)
     cursor += 64
 
-    if (mesh_group.collision.vert_strips) {
+    if (mesh.collision.vert_strips) {
         exports.highlight({ cursor: headstart + 36, hl })
         buffer.writeUInt32BE(cursor, headstart + 36)
-        cursor = exports.write_collision_vert_strips({ buffer, cursor, vert_strips: mesh_group.collision.vert_strips })
+        console.log('collision vert_strips', headstart + 36)
+        cursor = exports.write_collision_vert_strips({ buffer, cursor, vert_strips: mesh.collision.vert_strips })
     }
-    if (mesh_group.collision.vert_buffer) {
+    if (mesh.collision.vert_buffer) {
         exports.highlight({ cursor: headstart + 44, hl })
         buffer.writeUInt32BE(cursor, headstart + 44)
-        cursor = exports.write_collision_vert_buffer({ buffer, cursor, vert_buffer: mesh_group.collision.vert_buffer })
+        console.log('collision vert_buffer', headstart + 44)
+        cursor = exports.write_collision_vert_buffer({ buffer, cursor, vert_buffer: mesh.collision.vert_buffer })
     }
-    if (mesh_group.visuals.material) {
+    if (mesh.visuals.material) {
         exports.highlight({ cursor: headstart + 0, hl })
         buffer.writeUInt32BE(cursor, headstart + 0)
-        cursor = exports.write_mat({ buffer, cursor, mat: mesh_group.mat })
+        console.log('material', headstart + 0)
+        cursor = exports.write_mat({ buffer, cursor, mat: mesh.visuals.material, hl })
     }
-    if (mesh_group.visuals.index_buffer) {
-        exports.highlight({ cursor: headstart + 0, hl })
+    if (mesh.visuals.index_buffer) {
+        exports.highlight({ cursor: headstart + 48, hl })
         buffer.writeInt32BE(cursor, headstart + 48)
-        cursor = exports.write_visual_index_buffer({ buffer, cursor, index_buffer: mesh_group.visuals.index_buffer, hl })
+        console.log('visuals index_buffer', headstart + 48)
+        cursor = exports.write_visual_index_buffer({ buffer, cursor, index_buffer: mesh.visuals.index_buffer, hl })
     }
-    if (mesh_group.visuals.vert_buffer) {
+    if (mesh.visuals.vert_buffer) {
         exports.highlight({ cursor: headstart + 52, hl })
         buffer.writeUInt32BE(cursor, headstart + 52)
-        cursor = exports.write_visual_vert_buffer({ buffer, cursor, vert_buffer: mesh_group.visuals.vert_buffer })
+        console.log('visuals vert_buffer', headstart + 52)
+        cursor = exports.write_visual_vert_buffer({ buffer, cursor, vert_buffer: mesh.visuals.vert_buffer })
     }
-    if (mesh_group.collision.data) {
+    if (mesh.collision.data) {
         exports.highlight({ cursor: headstart + 4, hl })
         buffer.writeUInt32BE(cursor, headstart + 4)
-        cursor = exports.write_collision_data({ buffer, cursor, data: mesh_group.collision.data, hl })
+        console.log('collision data', headstart + 4)
+        cursor = exports.write_collision_data({ buffer, cursor, data: mesh.collision.data, hl })
     }
 
     //adjust minmax
@@ -1080,87 +1095,91 @@ exports.write_node = function ({ buffer, cursor, node, hl } = {}) {
             cursor = buffer.writeFloatBE(node.max_x, cursor)
             cursor = buffer.writeFloatBE(node.max_y, cursor)
             cursor = buffer.writeFloatBE(node.max_z, cursor)
+            cursor += 8
             break
         case 20582:
-            cursor = buffer.writeFloatBE(node.f1, cursor)
-            cursor = buffer.writeFloatBE(node.f2, cursor)
-            cursor = buffer.writeFloatBE(node.f3, cursor)
-            cursor = buffer.writeFloatBE(node.f4, cursor)
-            cursor = buffer.writeFloatBE(node.f5, cursor)
-            cursor = buffer.writeFloatBE(node.f6, cursor)
-            cursor = buffer.writeFloatBE(node.f7, cursor)
-            cursor = buffer.writeFloatBE(node.f8, cursor)
-            cursor = buffer.writeFloatBE(node.f9, cursor)
-            cursor = buffer.writeFloatBE(node.f10, cursor)
-            cursor = buffer.writeFloatBE(node.f11, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.f1, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.f2, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.f3, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.f4, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.f5, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.f6, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.f7, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.f8, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.f9, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.f10, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.f11, cursor)
             break
         case 53348:
-            cursor = buffer.writeFloatBE(node.ax, cursor)
-            cursor = buffer.writeFloatBE(node.ay, cursor)
-            cursor = buffer.writeFloatBE(node.az, cursor)
-            cursor = buffer.writeFloatBE(node.bx, cursor)
-            cursor = buffer.writeFloatBE(node.by, cursor)
-            cursor = buffer.writeFloatBE(node.bz, cursor)
-            cursor = buffer.writeFloatBE(node.cx, cursor)
-            cursor = buffer.writeFloatBE(node.cy, cursor)
-            cursor = buffer.writeFloatBE(node.cz, cursor)
-            cursor = buffer.writeFloatBE(node.x, cursor)
-            cursor = buffer.writeFloatBE(node.y, cursor)
-            cursor = buffer.writeFloatBE(node.z, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.ax, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.ay, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.az, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.bx, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.by, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.bz, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.cx, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.cy, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.cz, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.x, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.y, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.z, cursor)
             break
         case 53349:
-            cursor = buffer.writeFloatBE(node.ax, cursor)
-            cursor = buffer.writeFloatBE(node.ay, cursor)
-            cursor = buffer.writeFloatBE(node.az, cursor)
-            cursor = buffer.writeFloatBE(node.bx, cursor)
-            cursor = buffer.writeFloatBE(node.by, cursor)
-            cursor = buffer.writeFloatBE(node.bz, cursor)
-            cursor = buffer.writeFloatBE(node.cx, cursor)
-            cursor = buffer.writeFloatBE(node.cy, cursor)
-            cursor = buffer.writeFloatBE(node.cz, cursor)
-            cursor = buffer.writeFloatBE(node.x, cursor)
-            cursor = buffer.writeFloatBE(node.y, cursor)
-            cursor = buffer.writeFloatBE(node.z, cursor)
-            cursor = buffer.writeFloatBE(node.x1, cursor)
-            cursor = buffer.writeFloatBE(node.y1, cursor)
-            cursor = buffer.writeFloatBE(node.z1, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.ax, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.ay, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.az, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.bx, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.by, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.bz, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.cx, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.cy, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.cz, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.x, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.y, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.z, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.x1, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.y1, cursor)
+            cursor = buffer.writeFloatBE(node.xyz.z1, cursor)
             break
         case 53350:
-            cursor = buffer.writeInt32BE(node.unk1, cursor)
-            cursor = buffer.writeInt32BE(node.unk2, cursor)
-            cursor = buffer.writeInt32BE(node.unk3, cursor)
-            cursor = buffer.writeFloatBE(node.unk4, cursor)
+            cursor = buffer.writeInt32BE(node['53350'].unk1, cursor)
+            cursor = buffer.writeInt32BE(node['53350'].unk2, cursor)
+            cursor = buffer.writeInt32BE(node['53350'].unk3, cursor)
+            cursor = buffer.writeFloatBE(node['53350'].unk4, cursor)
             break
     }
 
-    //write offset to this child list
-    buffer.writeInt32BE(cursor, child_list_addr_addr)
+    if (node.children.length) {
+        //write offset to this child list
+        buffer.writeInt32BE(cursor, child_list_addr_addr)
 
-    //child list
-    let child_list_addr = cursor
-    for (let c = 0; c < node.children.length; c++) {
-        exports.highlight({ cursor, hl })
-        cursor += 4
-    }
-
-    //write children
-    for (let c = 0; c < node.children.length; c++) {
-
-        let child = node.children[c]
-
-        //remove later
-        if (child === null) {
-            buffer.writeUInt32BE(0, child_list_addr + c * 4)
-            continue
+        //child list
+        let child_list_addr = cursor
+        for (let c = 0; c < node.children.length; c++) {
+            exports.highlight({ cursor, hl })
+            cursor += 4
         }
 
-        buffer.writeUInt32BE(cursor, child_list_addr + c * 4)
-        if (mesh_group) {
-            cursor = exports.write_mesh_group({ buffer, cursor, mesh_group: child, hl })
-        } else {
-            cursor = exports.write_node({ buffer, cursor, node: child, hl })
+        //write children
+        for (let c = 0; c < node.children.length; c++) {
+
+            let child = node.children[c]
+
+            //remove later
+            if (child === null) {
+                buffer.writeUInt32BE(0, child_list_addr + c * 4)
+                continue
+            }
+
+            buffer.writeUInt32BE(cursor, child_list_addr + c * 4)
+            if (mesh_group) {
+                cursor = exports.write_mesh_group({ buffer, cursor, mesh: child, hl })
+            } else {
+                cursor = exports.write_node({ buffer, cursor, node: child, hl })
+            }
         }
     }
+
 
     return cursor
 }

@@ -45,7 +45,7 @@ Promise.all(replacements).then(models => {
     let offset_buffers = []
     let model_buffers = []
 
-    for (let i = 0; i < models.length; i++) {
+    for (let i = 0; i < 2; i++) {
         console.log(i)
         const [offset, model] = write_model({ model: models[i] })
         offset_buffers.push(offset)
