@@ -6,7 +6,7 @@ if (!fs.existsSync(filePath)) {
 }
 
 const file = fs.readFileSync(filePath)
-const { read_block, read_model } = require('./_block')
+const { read_block, read_model } = require('./block')
 
 if (!fs.existsSync('./models/')) {
     fs.mkdirSync('./models/');
@@ -23,4 +23,4 @@ for (let i = 0; i < 323; i++) {
     })
 }
 
-
+console.log(`Successfully unpacked ${model_buffers.length} models to models/`)

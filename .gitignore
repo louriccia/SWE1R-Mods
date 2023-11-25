@@ -1,2 +1,7 @@
 node_modules
-Tools/textureblock/upres
+tools/in
+tools/out
+tools/models
+tools/textures
+tools/sprites
+tools/splines

@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { write_model, write_block } = require('./_block');
+const { write_model, write_block } = require('./block');
 let splineblock = {}
 
 if (fs.existsSync('../splineblock/out_splineblock.json')) {
