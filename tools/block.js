@@ -53,7 +53,7 @@ exports.read_Anim = function ({ buffer, cursor, model } = {}) {
     model.Anim = []
     let anim = buffer.readUInt32BE(cursor)
     while (anim) {
-        model.Anim.push(exports.read_animation({ buffer, cursor: anim }))
+        model.Anim.push(exports.read_animation({ buffer, cursor: anim, model }))
         cursor += 4
         anim = buffer.readUInt32BE(cursor)
     }
@@ -131,41 +131,54 @@ exports.write_header = function ({ buffer, cursor, model, hl } = {}) {
     cursor += buffer.write(model.ext, cursor)
     for (let i = 0; i < model.header.length; i++) {
         exports.highlight({ cursor, hl })
-        cursor = buffer.writeInt32BE(model.header[i], cursor)
+        cursor += 4 //buffer.writeInt32BE(model.header[i], cursor)
     }
     cursor = buffer.writeInt32BE(-1, cursor)
-
+    let header_offsets = { //we'll need these to reference later
+        Anim: null,
+        AltN: null,
+        HEnd: null
+    }
     if (model.Data) {
         cursor = exports.write_Data({ buffer, cursor, model })
     }
     if (model.Anim) {
+        header_offsets.Anim = cursor
         cursor = exports.write_Anim({ buffer, cursor, model, hl })
     }
     if (model.AltN) {
+        header_offsets.AltN = cursor
         cursor = exports.write_AltN({ buffer, cursor, model, hl })
     }
 
     cursor += buffer.write('HEnd', cursor)
-    return cursor
+    header_offsets.HEnd = cursor
+    return header_offsets
 }
 
-exports.read_mat = function ({ buffer, cursor } = {}) {
+exports.read_mat = function ({ buffer, cursor, model } = {}) {
     if (!cursor) {
         return 0
     }
     let mat = {
+        id: cursor,
         format: buffer.readInt32BE(cursor),
-        texture: exports.read_mat_texture({ buffer, cursor: buffer.readUInt32BE(cursor + 8) }),
+        texture: exports.read_mat_texture({ buffer, cursor: buffer.readUInt32BE(cursor + 8), model }),
         unk: exports.read_mat_unk({ buffer, cursor: buffer.readInt32BE(cursor + 12) })
     }
-    return mat
+    if (!model.mats[cursor]) {
+        model.mats[cursor] = mat
+    }
+    return cursor
 }
 
-exports.write_mat = function ({ buffer, cursor, mat, hl } = {}) {
-    if (!mat) {
+exports.write_mat = function ({ buffer, cursor, mat_id, hl, model } = {}) {
+    if (!mat_id) {
         return cursor
     }
     let mat_addr = cursor
+    model.mats[mat_id].write = mat_addr
+    let mat = model.mats[mat_id]
     cursor = buffer.writeInt32BE(mat.format, cursor)
     cursor += 4
     exports.highlight({ cursor, hl })
@@ -173,18 +186,22 @@ exports.write_mat = function ({ buffer, cursor, mat, hl } = {}) {
     exports.highlight({ cursor, hl })
     cursor += 4
     if (mat.texture) {
-        buffer.writeUInt32BE(cursor, mat_addr + 8)
-        cursor = exports.write_mat_texture({ buffer, cursor, texture: mat.texture, hl })
+        let tex_id = mat.texture
+        if (model.textures[tex_id].write) {
+            buffer.writeUInt32BE(model.textures[tex_id].write, mat_addr + 8)
+        } else {
+            buffer.writeUInt32BE(cursor, mat_addr + 8)
+            cursor = exports.write_mat_texture({ buffer, cursor, tex_id, hl, model })
+        }
     }
     if (mat.unk) {
         buffer.writeUInt32BE(cursor, mat_addr + 12)
-        console.log('writing mat unk at', cursor, mat_addr + 12)
         cursor = exports.write_mat_unk({ buffer, cursor, unk: mat.unk })
     }
     return cursor
 }
 
-exports.read_mat_texture = function ({ buffer, cursor } = {}) {
+exports.read_mat_texture = function ({ buffer, cursor, model } = {}) {
     if (!cursor) {
         return 0
     }
@@ -221,15 +238,18 @@ exports.read_mat_texture = function ({ buffer, cursor } = {}) {
             i = 6
         }
     }
-
-    return mat
+    if (!model.textures[cursor]) {
+        model.textures[cursor] = mat
+    }
+    return cursor
 }
 
-exports.write_mat_texture = function ({ buffer, cursor, texture, hl } = {}) {
+exports.write_mat_texture = function ({ buffer, cursor, tex_id, hl, model } = {}) {
+    let texture = model.textures[tex_id]
     if (!texture) {
         return cursor
     }
-
+    model.textures[tex_id].write = cursor
     cursor = buffer.writeInt32BE(texture.unk0, cursor)             //0, 1, 65, 73
     cursor = buffer.writeInt16BE(texture.unk1, cursor)       //width * 4
     cursor = buffer.writeInt16BE(texture.unk2, cursor)       //height * 4
@@ -335,7 +355,7 @@ exports.write_mat_unk = function ({ buffer, cursor, unk } = {}) {
     return cursor
 }
 
-exports.read_animation = function ({ buffer, cursor } = {}) {
+exports.read_animation = function ({ buffer, cursor, model } = {}) {
     let anim = {
         float1: buffer.readFloatBE(cursor + 61 * 4),
         float2: buffer.readFloatBE(cursor + 62 * 4),
@@ -389,7 +409,7 @@ exports.read_animation = function ({ buffer, cursor } = {}) {
                 if (tex < cursor) {
                     anim.keyframe_poses.push({ repeat: tex })
                 } else {
-                    anim.keyframe_poses.push(exports.read_mat_texture({ buffer, cursor: tex }))
+                    anim.keyframe_poses.push(exports.read_mat_texture({ buffer, cursor: tex, model }))
                 }
 
             }
@@ -455,7 +475,7 @@ exports.write_animation = function ({ buffer, cursor, animation, hl } = {}) {
             }
         } else if ([25, 41, 57, 4153].includes(flag)) { //position (3)
             for (let f = 0; f < 3; f++) {
-                cursor = buffer.writeFloatBE(animation.keyframe_poses[p][f] * (f == 0 ? xStretch : f == 1 ? yStretch : zStretch) + (f == 0 ? xStretch : f == 1 ? yStretch : zStretch), cursor)
+                cursor = buffer.writeFloatBE(animation.keyframe_poses[p][f], cursor)
             }
         } else if ([27, 28].includes(flag)) { //uv_x/uv_y (1)
             cursor = buffer.writeFloatBE(animation.keyframe_poses[p], cursor)
@@ -573,7 +593,7 @@ exports.write_collision_vert_buffer = function ({ buffer, cursor, vert_buffer } 
             cursor = buffer.writeInt16BE(vert[i], cursor)
         }
     }
-    return cursor
+    return (cursor % 4 == 0 ? cursor : cursor + 2)
 }
 
 exports.read_collision_triggers = function ({ buffer, cursor } = {}) {
@@ -713,7 +733,7 @@ exports.read_visual_index_buffer = function ({ buffer, cursor } = {}) {
                         type,
                         unk1: buffer.readUInt8(cursor + v + 1),
                         unk2: buffer.readUInt8(cursor + v + 2),
-                        unk3: buffer.readUInt8(cursor + v + 3),
+                        size: buffer.readUInt8(cursor + v + 3),
                         start: (buffer.readUInt32BE(cursor + v + 4) - cursor) / 16
                     }
                 )
@@ -759,9 +779,6 @@ exports.write_visual_index_buffer = function ({ buffer, cursor, index_buffer, hl
     if (!index_buffer || !index_buffer.length) {
         return cursor
     }
-    if (cursor % 8 !== 0) { //must byte align this section
-        cursor += 4
-    }
     let v = 0
     for (let i = 0; i < index_buffer.length; i++) {
         let index = index_buffer[i]
@@ -771,9 +788,9 @@ exports.write_visual_index_buffer = function ({ buffer, cursor, index_buffer, hl
             case 1:
                 buffer.writeUInt8(index.unk1, cursor + v + 1)
                 buffer.writeUInt8(index.unk2, cursor + v + 2)
-                buffer.writeUInt8(index.unk3, cursor + v + 3)
+                buffer.writeUInt8(index.size, cursor + v + 3)
                 exports.highlight({ cursor: cursor + v + 4, hl })
-                buffer.writeUInt32BE(index.start, cursor + v + 4)
+                //buffer.writeUInt32BE(index.start, cursor + v + 4)
                 break
             case 3:
                 buffer.writeUInt8(index.unk, cursor + v + 7)
@@ -822,12 +839,13 @@ exports.read_visual_vert_buffer = function ({ buffer, cursor, count } = {}) {
     return vert_buffer
 }
 
-exports.write_visual_vert_buffer = function ({ buffer, cursor, vert_buffer } = {}) {
+exports.write_visual_vert_buffer = function ({ buffer, cursor, vert_buffer, index_buffer, index_buffer_addr } = {}) {
+    let vert_buffer_addr = cursor
+    //write buffer
     for (let i = 0; i < vert_buffer.length; i++) {
         // if (bufferpointers[i]) {
         //     buffer.writeInt32BE(cursor, bufferpointers[i])
         // }
-
         let x = vert_buffer[i].x
         let y = vert_buffer[i].y
         let z = vert_buffer[i].z
@@ -851,10 +869,20 @@ exports.write_visual_vert_buffer = function ({ buffer, cursor, vert_buffer } = {
         cursor = buffer.writeUInt8(vert_buffer[i].v_color[2], cursor)
         cursor = buffer.writeUInt8(vert_buffer[i].v_color[3], cursor)
     }
+
+    //write offsets in index_buffer to this section
+    let total = 0
+    for (let i = 0; i < index_buffer.length; i++) {
+        let index = index_buffer[i]
+        if (index.type == 1) {
+            buffer.writeUInt32BE(vert_buffer_addr + total, index_buffer_addr + i * 8 + 4)
+            total += index.size * 8
+        }
+    }
     return cursor
 }
 
-exports.read_mesh_group = function ({ buffer, cursor } = {}) {
+exports.read_mesh_group = function ({ buffer, cursor, model } = {}) {
     let mesh = {
         collision: {
             data: exports.read_collision_data({ buffer, cursor: buffer.readUInt32BE(cursor + 4) }),
@@ -862,7 +890,7 @@ exports.read_mesh_group = function ({ buffer, cursor } = {}) {
             vert_buffer: exports.read_collision_vert_buffer({ buffer, cursor: buffer.readUInt32BE(cursor + 44), count: buffer.readInt16BE(cursor + 56) }),
         },
         visuals: {
-            material: exports.read_mat({ buffer, cursor: buffer.readUInt32BE(cursor) }),
+            material: exports.read_mat({ buffer, cursor: buffer.readUInt32BE(cursor), model }),
             index_buffer: exports.read_visual_index_buffer({ buffer, cursor: buffer.readUInt32BE(cursor + 48) }),
             vert_buffer: exports.read_visual_vert_buffer({ buffer, cursor: buffer.readUInt32BE(cursor + 52), count: buffer.readInt16BE(cursor + 58) }),
             group_parent: buffer.readUInt32BE(cursor + 40),
@@ -881,7 +909,7 @@ exports.read_mesh_group = function ({ buffer, cursor } = {}) {
     return mesh
 }
 
-exports.write_mesh_group = function ({ buffer, cursor, mesh, hl } = {}) {
+exports.write_mesh_group = function ({ buffer, cursor, mesh, hl, model } = {}) {
     let headstart = cursor
     buffer.writeFloatBE(mesh.min_x, cursor + 8)
     buffer.writeFloatBE(mesh.min_y, cursor + 12)
@@ -898,37 +926,38 @@ exports.write_mesh_group = function ({ buffer, cursor, mesh, hl } = {}) {
     if (mesh.collision.vert_strips) {
         exports.highlight({ cursor: headstart + 36, hl })
         buffer.writeUInt32BE(cursor, headstart + 36)
-        console.log('collision vert_strips', headstart + 36)
         cursor = exports.write_collision_vert_strips({ buffer, cursor, vert_strips: mesh.collision.vert_strips })
     }
     if (mesh.collision.vert_buffer) {
         exports.highlight({ cursor: headstart + 44, hl })
         buffer.writeUInt32BE(cursor, headstart + 44)
-        console.log('collision vert_buffer', headstart + 44)
         cursor = exports.write_collision_vert_buffer({ buffer, cursor, vert_buffer: mesh.collision.vert_buffer })
     }
     if (mesh.visuals.material) {
         exports.highlight({ cursor: headstart + 0, hl })
-        buffer.writeUInt32BE(cursor, headstart + 0)
-        console.log('material', headstart + 0)
-        cursor = exports.write_mat({ buffer, cursor, mat: mesh.visuals.material, hl })
+        let mat_id = mesh.visuals.material
+        if (model.mats[mat_id].write) {
+            buffer.writeUInt32BE(model.mats[mat_id].write, headstart + 0)
+        } else {
+            buffer.writeUInt32BE(cursor, headstart + 0)
+            cursor = exports.write_mat({ buffer, cursor, mat_id, hl, model })
+        }
     }
+    let index_buffer_addr = null
     if (mesh.visuals.index_buffer) {
         exports.highlight({ cursor: headstart + 48, hl })
-        buffer.writeInt32BE(cursor, headstart + 48)
-        console.log('visuals index_buffer', headstart + 48)
-        cursor = exports.write_visual_index_buffer({ buffer, cursor, index_buffer: mesh.visuals.index_buffer, hl })
+        index_buffer_addr = cursor % 8 == 0 ? cursor : cursor + 4 //this section must be byte-aligned
+        buffer.writeInt32BE(index_buffer_addr, headstart + 48)
+        cursor = exports.write_visual_index_buffer({ buffer, cursor: index_buffer_addr, index_buffer: mesh.visuals.index_buffer, hl })
     }
     if (mesh.visuals.vert_buffer) {
         exports.highlight({ cursor: headstart + 52, hl })
         buffer.writeUInt32BE(cursor, headstart + 52)
-        console.log('visuals vert_buffer', headstart + 52)
-        cursor = exports.write_visual_vert_buffer({ buffer, cursor, vert_buffer: mesh.visuals.vert_buffer })
+        cursor = exports.write_visual_vert_buffer({ buffer, cursor, vert_buffer: mesh.visuals.vert_buffer, index_buffer: mesh.visuals.index_buffer, index_buffer_addr })
     }
     if (mesh.collision.data) {
         exports.highlight({ cursor: headstart + 4, hl })
         buffer.writeUInt32BE(cursor, headstart + 4)
-        console.log('collision data', headstart + 4)
         cursor = exports.write_collision_data({ buffer, cursor, data: mesh.collision.data, hl })
     }
 
@@ -1060,11 +1089,11 @@ exports.read_node = function ({ buffer, cursor, model } = {}) {
     for (let i = 0; i < child_count; i++) {
         let child_address = buffer.readUInt32BE(child_start + i * 4)
         if (!child_address) {
-            node.children.push(null)
+            node.children.push(null) //remove later
             continue
         }
         if (mesh_group) {
-            node.children.push(exports.read_mesh_group({ buffer, cursor: child_address }))
+            node.children.push(exports.read_mesh_group({ buffer, cursor: child_address, model }))
         } else {
             node.children.push(exports.read_node({ buffer, cursor: child_address, model }))
         }
@@ -1073,7 +1102,7 @@ exports.read_node = function ({ buffer, cursor, model } = {}) {
     return node
 }
 
-exports.write_node = function ({ buffer, cursor, node, hl } = {}) {
+exports.write_node = function ({ buffer, cursor, node, hl, model } = {}) {
 
     cursor = buffer.writeUInt32BE(node.head[0], cursor)
     cursor = buffer.writeUInt32BE(node.head[1], cursor)
@@ -1173,9 +1202,9 @@ exports.write_node = function ({ buffer, cursor, node, hl } = {}) {
 
             buffer.writeUInt32BE(cursor, child_list_addr + c * 4)
             if (mesh_group) {
-                cursor = exports.write_mesh_group({ buffer, cursor, mesh: child, hl })
+                cursor = exports.write_mesh_group({ buffer, cursor, mesh: child, hl, model })
             } else {
-                cursor = exports.write_node({ buffer, cursor, node: child, hl })
+                cursor = exports.write_node({ buffer, cursor, node: child, hl, model })
             }
         }
     }
@@ -1185,7 +1214,10 @@ exports.write_node = function ({ buffer, cursor, node, hl } = {}) {
 }
 
 exports.read_model = function ({ buffer, index } = {}) {
-    let model = {}
+    let model = {
+        mats: {},
+        textures: {}
+    }
     let size = 0
     let cursor = exports.read_header({ buffer, model, index, size })
     model.nodes = [exports.read_node({ buffer, cursor, model })]
@@ -1196,10 +1228,20 @@ exports.write_model = function ({ model } = {}) {
     let buffer = Buffer.alloc(8000000)
     let hl = Buffer.alloc(1000000)
     let cursor = 0
-    cursor = exports.write_header({ buffer, cursor, hl, model })
+    let header_offsets = exports.write_header({ buffer, cursor, hl, model })
+    cursor = header_offsets.HEnd
+
+    //write all nodes
     for (let i = 0; i < model.nodes.length; i++) {
-        cursor = exports.write_node({ buffer, cursor, hl, node: model.nodes[i] })
+        cursor = exports.write_node({ buffer, cursor, hl, node: model.nodes[i], model })
     }
+
+    //write all animations
+    for (let i = 0; i < model.Anim?.length; i++) {
+        buffer.writeUInt32BE(cursor, header_offsets.Anim + i * 4)
+        cursor = exports.write_animation({ buffer, cursor, animation: model.Anim[i], hl })
+    }
+
     return [hl.subarray(0, Math.ceil(cursor / (32 * 4)) * 4), buffer.subarray(0, cursor)]
 }
 
