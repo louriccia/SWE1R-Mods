@@ -143,11 +143,11 @@ exports.write_header = function ({ buffer, cursor, model, hl } = {}) {
         cursor = exports.write_Data({ buffer, cursor, model })
     }
     if (model.Anim) {
-        header_offsets.Anim = cursor
+        header_offsets.Anim = cursor + 4
         cursor = exports.write_Anim({ buffer, cursor, model, hl })
     }
     if (model.AltN) {
-        header_offsets.AltN = cursor
+        header_offsets.AltN = cursor + 4
         cursor = exports.write_AltN({ buffer, cursor, model, hl })
     }
 
@@ -419,7 +419,7 @@ exports.read_animation = function ({ buffer, cursor, model } = {}) {
     return anim
 }
 
-exports.write_animation = function ({ buffer, cursor, animation, hl } = {}) {
+exports.write_animation = function ({ buffer, cursor, animation, hl, model } = {}) {
     cursor += 61 * 4
     cursor = buffer.writeFloatBE(animation.float1, cursor)
     cursor = buffer.writeFloatBE(animation.float2, cursor)
@@ -488,42 +488,12 @@ exports.write_animation = function ({ buffer, cursor, animation, hl } = {}) {
             cursor += 4
         }
         for (let k = 0; k < animation.keyframe_poses.length; k++) {
-            if (rep.textures[animation.keyframe_poses[k]?.repeat]?.address) { //animation.keyframe_poses[k].repeat && 
-                buffer.writeInt32BE(rep.textures[animation.keyframe_poses[k].repeat].address, texturelist + k * 4)
-            } else if (rep.textures[animation.keyframe_poses[k]?.offset]?.address) { //animation.keyframe_poses[k].repeat && 
-                buffer.writeInt32BE(rep.textures[animation.keyframe_poses[k].offset].address, texturelist + k * 4)
+            let tex_id = animation.keyframe_poses[k]
+            if (model.textures[tex_id]?.write) {
+                buffer.writeUInt32BE(model.textures[tex_id].write, texturelist + k * 4)
             } else {
-                buffer.writeInt32BE(cursor, texturelist + k * 4)
-
-                rep.textures[animation.keyframe_poses[k].offset] = { address: cursor }
-                cursor = buffer.writeInt32BE(animation.keyframe_poses[k].unk0, cursor)             //0, 1, 65, 73
-                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk1, cursor)         //width * 4
-                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk2, cursor)         //height * 4
-                cursor = buffer.writeInt32BE(animation.keyframe_poses[k].unk3, cursor)           //always 0
-                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].format, cursor)       //3, 512, 513, 1024
-                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk4, cursor)         //0, 4
-                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].width, cursor)       //pixel width
-                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].height, cursor)       //pixel height
-                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk5, cursor)         //width * 512 (unsigned)
-                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk6, cursor)         //height * 512 (unsigned)
-                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk7, cursor)        //0 when unk4 is 4, 
-                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk8, cursor)
-                let unk_pointer_start = cursor
-                cursor += 28
-                exports.highlight({ cursor, hl })
-                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk9, cursor)
-                cursor = buffer.writeInt16BE(animation.keyframe_poses[k].tex_index, cursor)
-                cursor += 4
-
-                for (let p = 0; p < animation.keyframe_poses[k].unk_pointers.length; p++) {
-                    highlight(unk_pointer_start + p * 4)
-                    buffer.writeInt32BE(cursor, unk_pointer_start + p * 4)
-                    cursor = buffer.writeInt32BE(animation.keyframe_poses[k].unk_pointers[p].unk0, cursor)
-                    cursor = buffer.writeInt32BE(animation.keyframe_poses[k].unk_pointers[p].unk1, cursor)
-                    cursor = buffer.writeInt32BE(animation.keyframe_poses[k].unk_pointers[p].unk2, cursor)
-                    cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk_pointers[p].unk3, cursor)
-                    cursor = buffer.writeInt16BE(animation.keyframe_poses[k].unk_pointers[p].unk4, cursor)
-                }
+                buffer.writeUInt32BE(cursor, texturelist + k * 4)
+                cursor = exports.write_mat_texture({ buffer, cursor, tex_id, hl, model })
             }
         }
     }
@@ -1103,7 +1073,11 @@ exports.read_node = function ({ buffer, cursor, model } = {}) {
 }
 
 exports.write_node = function ({ buffer, cursor, node, hl, model } = {}) {
-
+    if (node.header) {
+        for (let i = 0; i < node.header.length; i++) {
+            buffer.writeUInt32BE(cursor, 4 + node.header[i] * 4)
+        }
+    }
     cursor = buffer.writeUInt32BE(node.head[0], cursor)
     cursor = buffer.writeUInt32BE(node.head[1], cursor)
     cursor = buffer.writeUInt32BE(node.head[2], cursor)
@@ -1239,7 +1213,7 @@ exports.write_model = function ({ model } = {}) {
     //write all animations
     for (let i = 0; i < model.Anim?.length; i++) {
         buffer.writeUInt32BE(cursor, header_offsets.Anim + i * 4)
-        cursor = exports.write_animation({ buffer, cursor, animation: model.Anim[i], hl })
+        cursor = exports.write_animation({ buffer, cursor, animation: model.Anim[i], hl, model })
     }
 
     return [hl.subarray(0, Math.ceil(cursor / (32 * 4)) * 4), buffer.subarray(0, cursor)]
