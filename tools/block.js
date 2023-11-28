@@ -83,9 +83,13 @@ exports.read_AltN = function ({ buffer, cursor, model } = {}) {
 }
 
 exports.write_AltN = function ({ buffer, cursor, model, hl } = {}) {
+    //the length of AltN might need to be asserted based on model extension?
     cursor += buffer.write('AltN', cursor)
     for (let i = 0; i < model.AltN.length; i++) {
         exports.highlight({ cursor, hl })
+        if (model.ext == 'Podd') {
+            buffer.writeUInt32BE(model.AltN[i], cursor)
+        }
         cursor += 4
     }
 
@@ -180,13 +184,10 @@ exports.write_mat = function ({ buffer, cursor, mat_id, hl, model } = {}) {
     model.mats[mat_id].write = mat_addr
     let mat = model.mats[mat_id]
     cursor = buffer.writeInt32BE(mat.format, cursor)
-    cursor += 4
-    exports.highlight({ cursor, hl })
-    cursor += 4
-    exports.highlight({ cursor, hl })
-    cursor += 4
+    cursor += 12
     if (mat.texture) {
         let tex_id = mat.texture
+        exports.highlight({ cursor: mat_addr + 8, hl })
         if (model.textures[tex_id].write) {
             buffer.writeUInt32BE(model.textures[tex_id].write, mat_addr + 8)
         } else {
@@ -195,6 +196,7 @@ exports.write_mat = function ({ buffer, cursor, mat_id, hl, model } = {}) {
         }
     }
     if (mat.unk) {
+        exports.highlight({ cursor: mat_addr + 12, hl })
         buffer.writeUInt32BE(cursor, mat_addr + 12)
         cursor = exports.write_mat_unk({ buffer, cursor, unk: mat.unk })
     }
@@ -264,17 +266,15 @@ exports.write_mat_texture = function ({ buffer, cursor, tex_id, hl, model } = {}
     cursor = buffer.writeInt16BE(texture.unk8, cursor)
 
     let unk_pointer = cursor
-    for (let i = 0; i < 7; i++) {
-        exports.highlight({ cursor, hl })
-        cursor += 4
-    }
-
+    cursor += 28
+    exports.highlight({ cursor, hl })
     cursor = buffer.writeInt16BE(texture.unk9, cursor)      //2560, 2815 is used when cursor index is blank
     cursor = buffer.writeInt16BE(texture.tex_index, cursor)
     cursor += 4
     for (let i = 0; i < texture.unk_pointers.length; i++) {
-        let pointer = texture.unk_pointers[i]
 
+        let pointer = texture.unk_pointers[i]
+        exports.highlight({ cursor: unk_pointer + i * 4, hl })
         buffer.writeUInt32BE(cursor, unk_pointer + i * 4)
         cursor = buffer.writeInt32BE(pointer.unk0, cursor)
         cursor = buffer.writeInt32BE(pointer.unk1, cursor)
@@ -353,6 +353,14 @@ exports.write_mat_unk = function ({ buffer, cursor, unk } = {}) {
     cursor = buffer.writeInt16BE(unk.unk23, cursor)
 
     return cursor
+}
+
+exports.read_animation_poses = function ({ buffer, cursor, anim, framecount }) {
+
+    let poses = []
+
+
+    return poses
 }
 
 exports.read_animation = function ({ buffer, cursor, model } = {}) {
@@ -444,7 +452,7 @@ exports.write_animation = function ({ buffer, cursor, animation, hl, model } = {
     if ([2, 18].includes(flag)) {
         anim_target = cursor
     } else {
-        buffer.writeInt32BE(animation.target, cursor)
+        buffer.writeInt32BE(model.node_map[animation.target], cursor)
     }
     cursor += 4
     cursor = buffer.writeInt32BE(animation.unk32, cursor)
@@ -459,7 +467,8 @@ exports.write_animation = function ({ buffer, cursor, animation, hl, model } = {
         //write target list
         buffer.writeInt32BE(cursor, anim_target)
         exports.highlight({ cursor, hl })
-        cursor = buffer.writeInt32BE(animation.target, cursor)
+        console.log(animation.target, model.textures)
+        cursor = buffer.writeInt32BE(model.mats[animation.target].write, cursor)
         exports.highlight({ cursor, hl })
         cursor += 4
     }
@@ -972,10 +981,13 @@ exports.read_node = function ({ buffer, cursor, model } = {}) {
     }
 
     if (model.AltN && model.AltN.includes(cursor)) {
-        node.AltN = true
+        node.AltN = model.AltN.map((h, i) => h == cursor ? i : -1).filter(h => h > -1)
     }
     if (model.header.includes(cursor)) {
         node.header = model.header.map((h, i) => h == cursor ? i : -1).filter(h => h > -1)
+    }
+    if (!model.node_map[cursor]) {
+        model.node_map[cursor] = true
     }
 
     let mesh_group = false
@@ -1059,25 +1071,49 @@ exports.read_node = function ({ buffer, cursor, model } = {}) {
     for (let i = 0; i < child_count; i++) {
         let child_address = buffer.readUInt32BE(child_start + i * 4)
         if (!child_address) {
-            node.children.push(null) //remove later
+            if (model.AltN?.includes(child_start + i * 4)) {
+                console.log('AltN wants to put something at', child_start + i * 4)
+                node.children.push({ id: null, AltN: model.AltN.map((h, j) => h == child_start + i * 4 ? j : -1).filter(h => h > -1) })
+            } else {
+                node.children.push({ id: null }) //remove later
+            }
             continue
         }
+
+        if (model.node_map[child_address]) { //we've already read this node
+            node.children.push({ id: child_address })
+            continue
+        }
+
         if (mesh_group) {
             node.children.push(exports.read_mesh_group({ buffer, cursor: child_address, model }))
         } else {
             node.children.push(exports.read_node({ buffer, cursor: child_address, model }))
         }
     }
-    //console.log(node)
     return node
 }
 
-exports.write_node = function ({ buffer, cursor, node, hl, model } = {}) {
+exports.write_node = function ({ buffer, cursor, node, hl, model, header_offsets } = {}) {
+
     if (node.header) {
         for (let i = 0; i < node.header.length; i++) {
             buffer.writeUInt32BE(cursor, 4 + node.header[i] * 4)
         }
     }
+
+    if (node.AltN) {
+        for (let i = 0; i < node.AltN.length; i++) {
+            buffer.writeUInt32BE(cursor, header_offsets.AltN + node.AltN[i] * 4)
+        }
+    }
+
+
+
+    if (!model.node_map[node.id]) {
+        model.node_map[node.id] = cursor
+    }
+
     cursor = buffer.writeUInt32BE(node.head[0], cursor)
     cursor = buffer.writeUInt32BE(node.head[1], cursor)
     cursor = buffer.writeUInt32BE(node.head[2], cursor)
@@ -1099,6 +1135,11 @@ exports.write_node = function ({ buffer, cursor, node, hl, model } = {}) {
             cursor = buffer.writeFloatBE(node.max_y, cursor)
             cursor = buffer.writeFloatBE(node.max_z, cursor)
             cursor += 8
+            break
+        case 20581:
+            if (node.children?.length) {
+                cursor += 4
+            }
             break
         case 20582:
             cursor = buffer.writeFloatBE(node.xyz.f1, cursor)
@@ -1168,9 +1209,18 @@ exports.write_node = function ({ buffer, cursor, node, hl, model } = {}) {
 
             let child = node.children[c]
 
-            //remove later
-            if (child === null) {
+            if (child.id === null) {
                 buffer.writeUInt32BE(0, child_list_addr + c * 4)
+                if (child.AltN) {
+                    for (let i = 0; i < child.AltN.length; i++) {
+                        buffer.writeUInt32BE(child_list_addr + c * 4, header_offsets.AltN + child.AltN[i] * 4)
+                    }
+                }
+                continue
+            }
+
+            if (model.node_map[child.id]) {
+                buffer.writeUInt32BE(model.node_map[child.id], child_list_addr + c * 4)
                 continue
             }
 
@@ -1178,7 +1228,7 @@ exports.write_node = function ({ buffer, cursor, node, hl, model } = {}) {
             if (mesh_group) {
                 cursor = exports.write_mesh_group({ buffer, cursor, mesh: child, hl, model })
             } else {
-                cursor = exports.write_node({ buffer, cursor, node: child, hl, model })
+                cursor = exports.write_node({ buffer, cursor, node: child, hl, model, header_offsets })
             }
         }
     }
@@ -1188,13 +1238,24 @@ exports.write_node = function ({ buffer, cursor, node, hl, model } = {}) {
 }
 
 exports.read_model = function ({ buffer, index } = {}) {
+    console.log('reading model', index)
     let model = {
-        mats: {},
-        textures: {}
+        mats: {}, //unique mats
+        textures: {}, //unique textures
+        node_map: {}, //unique node locations
+        nodes: [],
+
     }
     let size = 0
     let cursor = exports.read_header({ buffer, model, index, size })
-    model.nodes = [exports.read_node({ buffer, cursor, model })]
+    if (model.AltN?.length && model.ext !== 'Podd') {
+        let AltN = [...new Set(model.AltN)]
+        for (let i = 0; i < AltN.length; i++) {
+            model.nodes.push(exports.read_node({ buffer, cursor: AltN[i], model }))
+        }
+    } else {
+        model.nodes = [exports.read_node({ buffer, cursor, model })]
+    }
     return model
 }
 
@@ -1205,9 +1266,11 @@ exports.write_model = function ({ model } = {}) {
     let header_offsets = exports.write_header({ buffer, cursor, hl, model })
     cursor = header_offsets.HEnd
 
+    model.node_map = {} //clear and init node_map
+
     //write all nodes
     for (let i = 0; i < model.nodes.length; i++) {
-        cursor = exports.write_node({ buffer, cursor, hl, node: model.nodes[i], model })
+        cursor = exports.write_node({ buffer, cursor, hl, node: model.nodes[i], model, header_offsets })
     }
 
     //write all animations
@@ -1572,13 +1635,13 @@ exports.write_pixels = function ({ pixels, format } = {}) {
     return buffer
 }
 
-exports.draw_texture = async function ({ pixels, palette, width, height, format, path } = {}) {
+exports.draw_texture = async function ({ pixels, palette, width, height, format, path, index } = {}) {
     if (!pixels.length) {
-        console.log(`texture ${path} does not have any pixels`)
+        console.log(`texture ${index} does not have any pixels`)
         return
     }
     if ([undefined, null, ""].includes(format) || [undefined, null, ""].includes(width) || [undefined, null, ""].includes(height)) {
-        console.log(`texture ${path} is missing width/height/format data`)
+        console.log(`texture ${index} is missing width/height/format data`)
         return
     }
     const image = new Jimp(width, height)
@@ -1599,7 +1662,17 @@ exports.draw_texture = async function ({ pixels, palette, width, height, format,
                 color = Jimp.rgbaToInt(p?.[0] ?? 0, p?.[1] ?? 0, p?.[2] ?? 0, p?.[3] ?? 0)
             }
 
-            image.setPixelColor(color, j, height - 1 - i);
+            let x = 0
+
+            //certain textures in the pc release are scrambled and must use the following code to be drawn correctly
+            if (i % 2 == 1 && [49, 58, 99, 924, 966, 972, 991, 992, 1000, 1048, 1064].includes(index)) {
+                if (Math.floor(j / 8) % 2 == 0) {
+                    x = 8
+                } else {
+                    x = -8
+                }
+            }
+            image.setPixelColor(color, j + x, height - 1 - i);
 
         }
     }

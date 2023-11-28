@@ -27,7 +27,8 @@ for (let i = 0; i < pixel_buffers.length; i++) {
   draw_texture(
     {
       ...texture,
-      path: `textures/${i}.png`
+      path: `textures/${i}.png`,
+      index: i
     }
   )
 
