@@ -9,6 +9,13 @@ exports.highlight = function ({ cursor, hl } = {}) {
     hl.writeUInt8((highlight | bit), highlightoffset)
 }
 
+exports.update_offset = function ({ cursor, offset, model } = {}) {
+    if (!model.offset_map[offset]) {
+        model.offset_map[offset] = []
+    }
+    model.offset_map[offset].push(cursor)
+}
+
 exports.read_Data = function ({ buffer, cursor, model } = {}) {
     model.Data = { LStr: [], other: [] }
     const size = buffer.readUInt32BE(cursor)
@@ -452,6 +459,7 @@ exports.write_animation = function ({ buffer, cursor, animation, hl, model } = {
     if ([2, 18].includes(flag)) {
         anim_target = cursor
     } else {
+
         buffer.writeInt32BE(model.node_map[animation.target], cursor)
     }
     cursor += 4
@@ -467,7 +475,6 @@ exports.write_animation = function ({ buffer, cursor, animation, hl, model } = {
         //write target list
         buffer.writeInt32BE(cursor, anim_target)
         exports.highlight({ cursor, hl })
-        console.log(animation.target, model.textures)
         cursor = buffer.writeInt32BE(model.mats[animation.target].write, cursor)
         exports.highlight({ cursor, hl })
         cursor += 4
@@ -598,7 +605,7 @@ exports.read_collision_triggers = function ({ buffer, cursor } = {}) {
     return triggers
 }
 
-exports.write_collision_triggers = function ({ buffer, cursor, triggers, hl } = {}) {
+exports.write_collision_triggers = function ({ buffer, cursor, triggers, hl, model } = {}) {
     //write pointer to next trigger
     for (let i = 0; i < triggers.length; i++) {
         let trigger = triggers[i]
@@ -613,6 +620,8 @@ exports.write_collision_triggers = function ({ buffer, cursor, triggers, hl } = 
         cursor = buffer.writeFloatBE(trigger.width, cursor)
         cursor = buffer.writeFloatBE(trigger.height, cursor)
         //triggerkeeper.push({ original: trigger.target, address: cursor })
+        console.log(model.node_map[trigger.target])
+        cursor = buffer.writeUInt32BE(trigger.target, cursor)
         exports.highlight({ cursor, hl }) //trigger.target
         cursor += 4
         cursor = buffer.writeInt16BE(trigger.flag, cursor) //trigger.flag
@@ -663,7 +672,7 @@ exports.read_collision_data = function ({ buffer, cursor } = {}) {
     return data
 }
 
-exports.write_collision_data = function ({ buffer, cursor, data, hl } = {}) {
+exports.write_collision_data = function ({ buffer, cursor, data, hl, model } = {}) {
     cursor = buffer.writeInt16BE(data.unk, cursor) //data.unk
     cursor = buffer.writeUInt8(data.fog.flag, cursor) //data.fog.flag
     cursor = buffer.writeUInt8(data.fog.r, cursor) //data.fog.r
@@ -691,7 +700,7 @@ exports.write_collision_data = function ({ buffer, cursor, data, hl } = {}) {
     cursor = buffer.writeUInt32BE(data.unload, cursor) //data.unload
     cursor = buffer.writeUInt32BE(data.load, cursor)//data.load
 
-    cursor = exports.write_collision_triggers({ buffer, cursor, triggers: data.triggers, hl })
+    cursor = exports.write_collision_triggers({ buffer, cursor, triggers: data.triggers, hl, model })
 
     return cursor
 }
@@ -929,7 +938,7 @@ exports.write_mesh_group = function ({ buffer, cursor, mesh, hl, model } = {}) {
         buffer.writeInt32BE(index_buffer_addr, headstart + 48)
         cursor = exports.write_visual_index_buffer({ buffer, cursor: index_buffer_addr, index_buffer: mesh.visuals.index_buffer, hl })
     }
-    if (mesh.visuals.vert_buffer) {
+    if (mesh.visuals.vert_buffer?.length) {
         exports.highlight({ cursor: headstart + 52, hl })
         buffer.writeUInt32BE(cursor, headstart + 52)
         cursor = exports.write_visual_vert_buffer({ buffer, cursor, vert_buffer: mesh.visuals.vert_buffer, index_buffer: mesh.visuals.index_buffer, index_buffer_addr })
@@ -937,7 +946,7 @@ exports.write_mesh_group = function ({ buffer, cursor, mesh, hl, model } = {}) {
     if (mesh.collision.data) {
         exports.highlight({ cursor: headstart + 4, hl })
         buffer.writeUInt32BE(cursor, headstart + 4)
-        cursor = exports.write_collision_data({ buffer, cursor, data: mesh.collision.data, hl })
+        cursor = exports.write_collision_data({ buffer, cursor, data: mesh.collision.data, hl, model })
     }
 
     //adjust minmax
@@ -1072,7 +1081,6 @@ exports.read_node = function ({ buffer, cursor, model } = {}) {
         let child_address = buffer.readUInt32BE(child_start + i * 4)
         if (!child_address) {
             if (model.AltN?.includes(child_start + i * 4)) {
-                console.log('AltN wants to put something at', child_start + i * 4)
                 node.children.push({ id: null, AltN: model.AltN.map((h, j) => h == child_start + i * 4 ? j : -1).filter(h => h > -1) })
             } else {
                 node.children.push({ id: null }) //remove later
@@ -1266,7 +1274,9 @@ exports.write_model = function ({ model } = {}) {
     let header_offsets = exports.write_header({ buffer, cursor, hl, model })
     cursor = header_offsets.HEnd
 
-    model.node_map = {} //clear and init node_map
+    model.offset_map = {} //where we'll map node ids to their written locations
+    model.offset_keeper = {} //where we'll remember locations of node offsets to go back and update with the offset_map at the end
+
 
     //write all nodes
     for (let i = 0; i < model.nodes.length; i++) {
