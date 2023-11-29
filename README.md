@@ -37,19 +37,17 @@ Explore the structure of each archive in the `docs` folder:
 
 Restore scrambled textures to their intended appearance in the N64 version of the game.
 
-<video width="320" height="240" controls>
-  <source src="https://github.com/louriccia/SWE1R-Mods/tree/main/misc/restored_comparison.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+https://github.com/louriccia/SWE1R-Mods/blob/main/misc/restored_comparison.mp4
 
 ### [Bumpy's Broken Textures (Vol. 1)](https://github.com/louriccia/SWE1R-Mods/tree/main/texture_packs/BumpysBrokenTexturesVol1)
 
 A collection of texture packs that alter colors, including inverted, greyscale, randomized, and more.
 
-![Dark Mode](https://github.com/louriccia/SWE1R-Mods/tree/main/misc/darkmode.png)
-![Gray Area](https://github.com/louriccia/SWE1R-Mods/tree/main/misc/grayarea.png)
-![Inverted](https://github.com/louriccia/SWE1R-Mods/tree/main/misc/invertedmode.png)
-![Magic Eye](https://github.com/louriccia/SWE1R-Mods/tree/main/misc/magiceye.png)
+![grayarea](https://github.com/louriccia/SWE1R-Mods/assets/15792206/e8192093-4963-45f5-bf5c-e4e8767b47fc)
+![darkmode](https://github.com/louriccia/SWE1R-Mods/assets/15792206/d286d6f7-b711-4708-8650-0e0918760812)
+![magiceye](https://github.com/louriccia/SWE1R-Mods/assets/15792206/cab7b831-20c8-4ca6-a360-18a017d5c89e)
+![invertedmode](https://github.com/louriccia/SWE1R-Mods/assets/15792206/bfc435d8-23df-4d81-9f00-116318ee90c3)
+
 
 - **Dark Mode**: All textures completely blacked out
 - **Gray Area**: All textures converted to grayscale
@@ -62,9 +60,9 @@ A collection of texture packs that alter colors, including inverted, greyscale, 
 
 More broken texture packs with unique themes.
 
-![Tron Gazza](https://github.com/louriccia/SWE1R-Mods/tree/main/misc/trongazza.png)
-![GameGreen](https://github.com/louriccia/SWE1R-Mods/tree/main/misc/gamegreen.png)
-![SimpleShading](https://github.com/louriccia/SWE1R-Mods/tree/main/misc/simpleshading.png)
+![simpleshading](https://github.com/louriccia/SWE1R-Mods/assets/15792206/eab0d8c7-52bb-4a4c-ade7-59b2c0e237e6)
+![gamegreen](https://github.com/louriccia/SWE1R-Mods/assets/15792206/2f4d1337-e65e-4546-b5f3-a8147ce08feb)
+![trongazza](https://github.com/louriccia/SWE1R-Mods/assets/15792206/e81df6b9-2166-4641-8556-183a1df8f0a5)
 
 - **TronGazza**: Vaporwave aesthetic
 - **GridBlock**: White fill, black outlines
@@ -86,10 +84,7 @@ Play your favorite tracks in reverse!
 
 Various track modifications to challenge your racing skills.
 
-<video width="320" height="240" controls>
-  <source src="https://github.com/louriccia/SWE1R-Mods/tree/main/misc/smn_promo.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+https://github.com/louriccia/SWE1R-Mods/blob/main/misc/smn_promo.mp4
 
 - **Ronto-Sized**: Tracks are 1.9x scale
 - **Jawa-Sized**: Tracks are 0.4x scale
