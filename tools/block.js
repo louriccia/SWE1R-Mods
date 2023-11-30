@@ -9,11 +9,17 @@ exports.highlight = function ({ cursor, hl } = {}) {
     hl.writeUInt8((highlight | bit), highlightoffset)
 }
 
-exports.update_offset = function ({ cursor, offset, model } = {}) {
-    if (!model.offset_map[offset]) {
-        model.offset_map[offset] = []
+exports.outside_ref = function ({ cursor, ref, model } = {}) {
+    if (!model.ref_keeper[ref]) {
+        model.ref_keeper[ref] = []
     }
-    model.offset_map[offset].push(cursor)
+    model.ref_keeper[ref].push(cursor)
+}
+
+exports.map_ref = function ({ cursor, id, model } = {}) {
+    if (!model.ref_map[id]) {
+        model.ref_map[id] = cursor
+    }
 }
 
 exports.read_Data = function ({ buffer, cursor, model } = {}) {
@@ -94,6 +100,7 @@ exports.write_AltN = function ({ buffer, cursor, model, hl } = {}) {
     cursor += buffer.write('AltN', cursor)
     for (let i = 0; i < model.AltN.length; i++) {
         exports.highlight({ cursor, hl })
+        exports.outside_ref({ cursor, ref: model.AltN[i], model })
         if (model.ext == 'Podd') {
             buffer.writeUInt32BE(model.AltN[i], cursor)
         }
@@ -141,6 +148,7 @@ exports.read_header = function ({ buffer, model, index } = {}) {
 exports.write_header = function ({ buffer, cursor, model, hl } = {}) {
     cursor += buffer.write(model.ext, cursor)
     for (let i = 0; i < model.header.length; i++) {
+        exports.outside_ref({ cursor, ref: model.header[i], model })
         exports.highlight({ cursor, hl })
         cursor += 4 //buffer.writeInt32BE(model.header[i], cursor)
     }
@@ -189,6 +197,7 @@ exports.write_mat = function ({ buffer, cursor, mat_id, hl, model } = {}) {
     }
     let mat_addr = cursor
     model.mats[mat_id].write = mat_addr
+    exports.map_ref({ cursor, id: mat_id, model })
     let mat = model.mats[mat_id]
     cursor = buffer.writeInt32BE(mat.format, cursor)
     cursor += 12
@@ -259,6 +268,7 @@ exports.write_mat_texture = function ({ buffer, cursor, tex_id, hl, model } = {}
         return cursor
     }
     model.textures[tex_id].write = cursor
+    exports.map_ref({ cursor, id: tex_id, model })
     cursor = buffer.writeInt32BE(texture.unk0, cursor)             //0, 1, 65, 73
     cursor = buffer.writeInt16BE(texture.unk1, cursor)       //width * 4
     cursor = buffer.writeInt16BE(texture.unk2, cursor)       //height * 4
@@ -459,8 +469,7 @@ exports.write_animation = function ({ buffer, cursor, animation, hl, model } = {
     if ([2, 18].includes(flag)) {
         anim_target = cursor
     } else {
-
-        buffer.writeInt32BE(model.node_map[animation.target], cursor)
+        exports.outside_ref({ cursor, ref: animation.target, model })
     }
     cursor += 4
     cursor = buffer.writeInt32BE(animation.unk32, cursor)
@@ -619,10 +628,8 @@ exports.write_collision_triggers = function ({ buffer, cursor, triggers, hl, mod
         cursor = buffer.writeFloatBE(trigger.vz, cursor)
         cursor = buffer.writeFloatBE(trigger.width, cursor)
         cursor = buffer.writeFloatBE(trigger.height, cursor)
-        //triggerkeeper.push({ original: trigger.target, address: cursor })
-        console.log(model.node_map[trigger.target])
-        cursor = buffer.writeUInt32BE(trigger.target, cursor)
-        exports.highlight({ cursor, hl }) //trigger.target
+        exports.outside_ref({ cursor, ref: trigger.target, model })
+        exports.highlight({ cursor, hl })
         cursor += 4
         cursor = buffer.writeInt16BE(trigger.flag, cursor) //trigger.flag
         cursor += 2
@@ -705,7 +712,7 @@ exports.write_collision_data = function ({ buffer, cursor, data, hl, model } = {
     return cursor
 }
 
-exports.read_visual_index_buffer = function ({ buffer, cursor } = {}) {
+exports.read_visual_index_buffer = function ({ buffer, cursor, vert_buffer_start } = {}) {
     if (!cursor) {
         return 0
     }
@@ -722,7 +729,7 @@ exports.read_visual_index_buffer = function ({ buffer, cursor } = {}) {
                         unk1: buffer.readUInt8(cursor + v + 1),
                         unk2: buffer.readUInt8(cursor + v + 2),
                         size: buffer.readUInt8(cursor + v + 3),
-                        start: (buffer.readUInt32BE(cursor + v + 4) - cursor) / 16
+                        start: (buffer.readUInt32BE(cursor + v + 4) - vert_buffer_start) / 16
                     }
                 )
                 break
@@ -858,15 +865,14 @@ exports.write_visual_vert_buffer = function ({ buffer, cursor, vert_buffer, inde
         cursor = buffer.writeUInt8(vert_buffer[i].v_color[3], cursor)
     }
 
-    //write offsets in index_buffer to this section
+    //write refs in index_buffer to this section
     let total = 0
-    for (let i = 0; i < index_buffer.length; i++) {
-        let index = index_buffer[i]
+    index_buffer.forEach((index, i) => {
         if (index.type == 1) {
-            buffer.writeUInt32BE(vert_buffer_addr + total, index_buffer_addr + i * 8 + 4)
-            total += index.size * 8
+            buffer.writeUInt32BE(vert_buffer_addr + index.start * 16, index_buffer_addr + i * 8 + 4)
         }
-    }
+    })
+
     return cursor
 }
 
@@ -879,7 +885,7 @@ exports.read_mesh_group = function ({ buffer, cursor, model } = {}) {
         },
         visuals: {
             material: exports.read_mat({ buffer, cursor: buffer.readUInt32BE(cursor), model }),
-            index_buffer: exports.read_visual_index_buffer({ buffer, cursor: buffer.readUInt32BE(cursor + 48) }),
+            index_buffer: exports.read_visual_index_buffer({ buffer, cursor: buffer.readUInt32BE(cursor + 48), vert_buffer_start: buffer.readUInt32BE(cursor + 52) }),
             vert_buffer: exports.read_visual_vert_buffer({ buffer, cursor: buffer.readUInt32BE(cursor + 52), count: buffer.readInt16BE(cursor + 58) }),
             group_parent: buffer.readUInt32BE(cursor + 40),
             group_count: buffer.readInt16BE(cursor + 62)
@@ -907,8 +913,11 @@ exports.write_mesh_group = function ({ buffer, cursor, mesh, hl, model } = {}) {
     buffer.writeFloatBE(mesh.max_z, cursor + 28)
     buffer.writeInt16BE(mesh.vert_strip_count, cursor + 32)
     buffer.writeInt16BE(mesh.vert_strip_default, cursor + 34)
+    exports.highlight({ cursor: cursor + 40, hl })
+    exports.outside_ref({ cursor: cursor + 40, ref: mesh.visuals.group_parent, model })
     buffer.writeInt16BE(mesh.collision.vert_buffer.length, cursor + 56)
     buffer.writeInt16BE(mesh.visuals.vert_buffer.length, cursor + 58)
+    buffer.writeInt16BE(mesh.visuals.group_count, cursor + 62)
     cursor += 64
 
     if (mesh.collision.vert_strips) {
@@ -1081,7 +1090,7 @@ exports.read_node = function ({ buffer, cursor, model } = {}) {
         let child_address = buffer.readUInt32BE(child_start + i * 4)
         if (!child_address) {
             if (model.AltN?.includes(child_start + i * 4)) {
-                node.children.push({ id: null, AltN: model.AltN.map((h, j) => h == child_start + i * 4 ? j : -1).filter(h => h > -1) })
+                node.children.push({ id: child_start + i * 4, AltN: true })
             } else {
                 node.children.push({ id: null }) //remove later
             }
@@ -1116,11 +1125,7 @@ exports.write_node = function ({ buffer, cursor, node, hl, model, header_offsets
         }
     }
 
-
-
-    if (!model.node_map[node.id]) {
-        model.node_map[node.id] = cursor
-    }
+    exports.map_ref({ cursor, id: node.id, model })
 
     cursor = buffer.writeUInt32BE(node.head[0], cursor)
     cursor = buffer.writeUInt32BE(node.head[1], cursor)
@@ -1201,43 +1206,45 @@ exports.write_node = function ({ buffer, cursor, node, hl, model, header_offsets
             break
     }
 
-    if (node.children.length) {
-        //write offset to this child list
-        buffer.writeInt32BE(cursor, child_list_addr_addr)
+    if (!node.children.length) {
+        return cursor
+    }
 
-        //child list
-        let child_list_addr = cursor
-        for (let c = 0; c < node.children.length; c++) {
-            exports.highlight({ cursor, hl })
-            cursor += 4
+    //write offset to this child list
+    buffer.writeInt32BE(cursor, child_list_addr_addr)
+
+    //child list
+    let child_list_addr = cursor
+    for (let c = 0; c < node.children.length; c++) {
+        exports.highlight({ cursor, hl })
+        cursor += 4
+    }
+
+    //write children
+    for (let c = 0; c < node.children.length; c++) {
+
+        let child = node.children[c]
+
+        if (child.AltN) {
+            exports.map_ref({ cursor: child_list_addr + c * 4, id: child.id, model })
+            continue
         }
 
-        //write children
-        for (let c = 0; c < node.children.length; c++) {
+        if (child.id === null) {
+            buffer.writeUInt32BE(0, child_list_addr + c * 4)
+            continue
+        }
 
-            let child = node.children[c]
+        if (model.ref_map[child.id]) { //we already wrote this section
+            buffer.writeUInt32BE(model.ref_map[child.id], child_list_addr + c * 4)
+            continue
+        }
 
-            if (child.id === null) {
-                buffer.writeUInt32BE(0, child_list_addr + c * 4)
-                if (child.AltN) {
-                    for (let i = 0; i < child.AltN.length; i++) {
-                        buffer.writeUInt32BE(child_list_addr + c * 4, header_offsets.AltN + child.AltN[i] * 4)
-                    }
-                }
-                continue
-            }
-
-            if (model.node_map[child.id]) {
-                buffer.writeUInt32BE(model.node_map[child.id], child_list_addr + c * 4)
-                continue
-            }
-
-            buffer.writeUInt32BE(cursor, child_list_addr + c * 4)
-            if (mesh_group) {
-                cursor = exports.write_mesh_group({ buffer, cursor, mesh: child, hl, model })
-            } else {
-                cursor = exports.write_node({ buffer, cursor, node: child, hl, model, header_offsets })
-            }
+        buffer.writeUInt32BE(cursor, child_list_addr + c * 4)
+        if (mesh_group) {
+            cursor = exports.write_mesh_group({ buffer, cursor, mesh: child, hl, model })
+        } else {
+            cursor = exports.write_node({ buffer, cursor, node: child, hl, model, header_offsets })
         }
     }
 
@@ -1271,12 +1278,12 @@ exports.write_model = function ({ model } = {}) {
     let buffer = Buffer.alloc(8000000)
     let hl = Buffer.alloc(1000000)
     let cursor = 0
+
+    model.ref_map = {} //where we'll map node ids to their written locations
+    model.ref_keeper = {} //where we'll remember locations of node offsets to go back and update with the offset_map at the end
+
     let header_offsets = exports.write_header({ buffer, cursor, hl, model })
     cursor = header_offsets.HEnd
-
-    model.offset_map = {} //where we'll map node ids to their written locations
-    model.offset_keeper = {} //where we'll remember locations of node offsets to go back and update with the offset_map at the end
-
 
     //write all nodes
     for (let i = 0; i < model.nodes.length; i++) {
@@ -1288,6 +1295,14 @@ exports.write_model = function ({ model } = {}) {
         buffer.writeUInt32BE(cursor, header_offsets.Anim + i * 4)
         cursor = exports.write_animation({ buffer, cursor, animation: model.Anim[i], hl, model })
     }
+
+    //write all outside references
+    let refs = Object.keys(model.ref_keeper).filter(ref => ref !== 0)
+    refs.forEach(ref => {
+        model.ref_keeper[ref].forEach(offset => {
+            buffer.writeUInt32BE(model.ref_map[ref], offset)
+        })
+    })
 
     return [hl.subarray(0, Math.ceil(cursor / (32 * 4)) * 4), buffer.subarray(0, cursor)]
 }
