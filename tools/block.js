@@ -10,6 +10,7 @@ exports.highlight = function ({ cursor, hl } = {}) {
 }
 
 exports.outside_ref = function ({ cursor, ref, model } = {}) {
+    //used when writing modelblock to keep track of references to offsets outside of the given section
     if (!model.ref_keeper[ref]) {
         model.ref_keeper[ref] = []
     }
@@ -17,6 +18,7 @@ exports.outside_ref = function ({ cursor, ref, model } = {}) {
 }
 
 exports.map_ref = function ({ cursor, id, model } = {}) {
+    //used when writing modelblock to map original ids of nodes to their new ids
     if (!model.ref_map[id]) {
         model.ref_map[id] = cursor
     }
