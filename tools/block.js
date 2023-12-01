@@ -528,8 +528,9 @@ exports.write_animation = function ({ buffer, cursor, animation, hl, model } = {
     return cursor
 }
 
-exports.read_collision_vert_strips = function ({ buffer, cursor, count } = {}) {
+exports.read_collision_vert_strips = function ({ buffer, cursor, count, def } = {}) {
     if (!cursor) {
+        console.log('no buffer', count, def)
         return 0
     }
     let vert_strips = []
@@ -882,7 +883,7 @@ exports.read_mesh_group = function ({ buffer, cursor, model } = {}) {
     let mesh = {
         collision: {
             data: exports.read_collision_data({ buffer, cursor: buffer.readUInt32BE(cursor + 4) }),
-            vert_strips: exports.read_collision_vert_strips({ buffer, cursor: buffer.readUInt32BE(cursor + 36), count: buffer.readInt16BE(cursor + 32) }),
+            vert_strips: exports.read_collision_vert_strips({ buffer, cursor: buffer.readUInt32BE(cursor + 36), count: buffer.readInt16BE(cursor + 32), def: buffer.readInt16BE(cursor + 34) }),
             vert_buffer: exports.read_collision_vert_buffer({ buffer, cursor: buffer.readUInt32BE(cursor + 44), count: buffer.readInt16BE(cursor + 56) }),
         },
         visuals: {
