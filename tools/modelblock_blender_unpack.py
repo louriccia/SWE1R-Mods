@@ -358,7 +358,7 @@ def make_mesh_group(mesh_node, model, parent):
     if not 'collision' in mesh_node:
         return
     
-    if (mesh_node['collision']['vert_buffer'] == 0 or len(mesh_node['collision']['vert_buffer']) < 4):
+    if (mesh_node['collision']['vert_buffer'] == 0 or len(mesh_node['collision']['vert_buffer']) < 3):
         return
             
     verts = mesh_node['collision']['vert_buffer']
@@ -388,12 +388,12 @@ def make_mesh_group(mesh_node, model, parent):
                         faces.append( [start+s, start+s+1, start+s+2])
             start += strip
             
-    mesh_name = str(i) + "_" + "collision"
+    mesh_name = mesh_node['id'] + "_" + "collision"
     mesh = bpy.data.meshes.new(mesh_name)
     obj = bpy.data.objects.new(mesh_name, mesh)
     
     obj['vert_strips'] = mesh_node['collision']['vert_strips']
-    
+    obj['type'] = 'COL'    
     obj.scale = [scale, scale, scale]
 
     model['collection'].objects.link(obj)
@@ -414,6 +414,7 @@ def make_mesh_group(mesh_node, model, parent):
 
 def read_mesh_group(buffer, cursor, model, parent):
     mesh = {
+        'id': str(cursor),
         'collision': {
             'data': read_collision_data(buffer=buffer, cursor=readUInt32BE(buffer,cursor + 4)),
             'vert_strips': read_collision_vert_strips(buffer=buffer, cursor=readUInt32BE(buffer,cursor + 36), count=readInt16BE(buffer, cursor + 32), default=readInt16BE(buffer, cursor + 34)),
@@ -689,6 +690,7 @@ def read_header(buffer, model, index, collection):
         cursor += 4
         header = readInt32BE(buffer, cursor)
 
+    collection['header'] = model['header']
     cursor += 4
     header_string = readString(buffer, cursor)
 
@@ -715,9 +717,13 @@ def read_model(buffer, index):
     }
     
     main_collection = bpy.data.collections.new(f"{index}_{readString(buffer, 0)}")
+    main_collection['ext'] = readString(buffer, 0)
+    main_collection['ind'] = index
+    main_collection['type'] = 'MODEL'
     bpy.context.scene.collection.children.link(main_collection)
     model['collection'] = main_collection
     lightstreaks_col = bpy.data.collections.new(f"{index}_lightstreaks")
+    lightstreaks_col['type'] = 'LSTR'
     main_collection.children.link(lightstreaks_col)
     
     cursor = read_header(buffer=buffer, model=model, index=index, collection=main_collection)    
@@ -760,7 +766,7 @@ def read_block(file, arr, selector):
 
 file_path = 'C:/Users/louri/Documents/GitHub/SWE1R-Mods/tools/in/out_modelblock.bin'
 
-selector = [128]
+selector = [115]
 
 with open(file_path, 'rb') as file:
     file = file.read()
