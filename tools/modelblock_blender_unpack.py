@@ -307,7 +307,7 @@ def read_visual_index_buffer(buffer, cursor, vert_buffer_start):
                 'unk1': readUInt8(buffer, cursor + v + 1),
                 'unk2': readUInt8(buffer, cursor + v + 2),
                 'size': readUInt8(buffer, cursor + v + 3),
-                'start': (readUInt32BE(buffer,cursor + v + 4) - vert_buffer_start) / 16
+                'start': round((readUInt32BE(buffer,cursor + v + 4) - vert_buffer_start) / 16)
             })
         elif type == 3:
             index_buffer.append({
@@ -317,19 +317,19 @@ def read_visual_index_buffer(buffer, cursor, vert_buffer_start):
         elif type == 5:
             index_buffer.append({
                 'type': type,
-                'x': readUInt8(buffer, cursor + v + 1),
-                'y': readUInt8(buffer, cursor + v + 2),
-                'z': readUInt8(buffer, cursor + v + 3)
+                'x': round(readUInt8(buffer, cursor + v + 1)/2),
+                'y': round(readUInt8(buffer, cursor + v + 2)/2),
+                'z': round(readUInt8(buffer, cursor + v + 3)/2)
             })
         elif type == 6:
             index_buffer.append({
                 'type': type,
-                'x1': readUInt8(buffer, cursor + v + 1),
-                'y1': readUInt8(buffer, cursor + v + 2),
-                'z1': readUInt8(buffer, cursor + v + 3),
-                'x2': readUInt8(buffer, cursor + v + 5),
-                'y2': readUInt8(buffer, cursor + v + 6),
-                'z2': readUInt8(buffer, cursor + v + 7)
+                'x1': round(readUInt8(buffer, cursor + v + 1)/2),
+                'y1': round(readUInt8(buffer, cursor + v + 2)/2),
+                'z1': round(readUInt8(buffer, cursor + v + 3)/2),
+                'x2': round(readUInt8(buffer, cursor + v + 5)/2),
+                'y2': round(readUInt8(buffer, cursor + v + 6)/2),
+                'z2': round(readUInt8(buffer, cursor + v + 7)/2)
             })
 
         v += 8
@@ -354,7 +354,143 @@ def read_visual_vert_buffer(buffer, cursor, count):
         })
     return vert_buffer
 
-def make_mesh_group(mesh_node, model, parent):
+def make_material(node):
+    if (node['visuals']['material']['texture_data'] != 0):                   
+        offset = str(node['visuals']['material']['offset'])
+        testmat = bpy.data.materials.get(offset)
+        
+        
+        material = bpy.data.materials.new(offset)
+        material.use_nodes = True
+        #material.blend_method = 'BLEND' #use for transparency
+        material.blend_method = 'CLIP'
+        if node['visuals']['material']['texture_data']['format'] == 3:
+            material.blend_method = 'BLEND'
+        if node['visuals']['material']['format'] != 6:
+            material.use_backface_culling = True
+        if node['visuals']['material']['unk_data']['unk1'] == 8:
+            material.show_transparent_back = False
+        else:
+            material.show_transparent_back = True
+         
+        node_1 = material.node_tree.nodes.new("ShaderNodeTexImage")
+        node_2 = material.node_tree.nodes.new("ShaderNodeVertexColor")
+        node_3 = material.node_tree.nodes.new("ShaderNodeMixRGB")
+        node_3.blend_type = 'MULTIPLY'
+        node_3.inputs[0].default_value = 1
+        material.node_tree.links.new(node_1.outputs["Color"], node_3.inputs["Color1"])
+        material.node_tree.links.new(node_2.outputs["Color"], node_3.inputs["Color2"])
+        material.node_tree.links.new(node_3.outputs["Color"], material.node_tree.nodes['Principled BSDF'].inputs["Base Color"])
+        material.node_tree.links.new(node_1.outputs["Alpha"], material.node_tree.nodes['Principled BSDF'].inputs["Alpha"])
+        material.node_tree.nodes["Principled BSDF"].inputs[5].default_value = 0
+        material.node_tree.nodes["Principled BSDF"].inputs[7].default_value = 0 #turn off specular
+        
+        image = str(node['visuals']['material']['texture_data']['tex_index'])
+        if image in ["1167", "1077", "1461", "1596"]: #probably shouldn't do it this way; TODO find specific tag
+            material.blend_method = 'BLEND'
+            material.node_tree.links.new(node_1.outputs["Color"], material.node_tree.nodes['Principled BSDF'].inputs["Alpha"])
+        
+        if node['visuals']['material']['format'] in [31, 15, 7]:
+            material.node_tree.links.new(node_2.outputs["Color"], material.node_tree.nodes['Principled BSDF'].inputs["Normal"])
+            material.node_tree.links.new(node_1.outputs["Color"], material.node_tree.nodes['Principled BSDF'].inputs["Base Color"])
+        
+        if(node['visuals']['material']['texture_data']['unk_pointer']['unk0'] & 0x11 != 0):
+            node_4 = material.node_tree.nodes.new("ShaderNodeUVMap")
+            node_5 = material.node_tree.nodes.new("ShaderNodeSeparateXYZ")
+            node_6 = material.node_tree.nodes.new("ShaderNodeCombineXYZ")
+            material.node_tree.links.new(node_4.outputs["UV"], node_5.inputs["Vector"])
+            material.node_tree.links.new(node_6.outputs["Vector"], node_1.inputs["Vector"])
+            if(node['visuals']['material']['texture_data']['unk_pointer']['unk0'] & 0x11 == 0x11):
+                node_7 = material.node_tree.nodes.new("ShaderNodeMath")
+                node_7.operation = 'PINGPONG'
+                node_7.inputs[1].default_value = 1
+                material.node_tree.links.new(node_5.outputs["X"], node_7.inputs["Value"])
+                material.node_tree.links.new(node_7.outputs["Value"], node_6.inputs["X"])
+                node_8 = material.node_tree.nodes.new("ShaderNodeMath")
+                node_8.operation = 'PINGPONG'
+                node_8.inputs[1].default_value = 1
+                material.node_tree.links.new(node_5.outputs["Y"], node_8.inputs["Value"])
+                material.node_tree.links.new(node_8.outputs["Value"], node_6.inputs["Y"])
+            elif(node['visuals']['material']['texture_data']['unk_pointer']['unk0'] & 0x11 == 0x01):
+                material.node_tree.links.new(node_5.outputs["X"], node_6.inputs["X"])
+                node_7 = material.node_tree.nodes.new("ShaderNodeMath")
+                node_7.operation = 'PINGPONG'
+                node_7.inputs[1].default_value = 1
+                material.node_tree.links.new(node_5.outputs["Y"], node_7.inputs["Value"])
+                material.node_tree.links.new(node_7.outputs["Value"], node_6.inputs["Y"])
+            elif(node['visuals']['material']['texture_data']['unk_pointer']['unk0'] & 0x11 == 0x10):
+                node_7 = material.node_tree.nodes.new("ShaderNodeMath")
+                node_7.operation = 'PINGPONG'
+                node_7.inputs[1].default_value = 1
+                material.node_tree.links.new(node_5.outputs["X"], node_7.inputs["Value"])
+                material.node_tree.links.new(node_7.outputs["Value"], node_6.inputs["X"])
+                material.node_tree.links.new(node_5.outputs["Y"], node_6.inputs["Y"])
+        image_path = "C:/Users/louri/Documents/GitHub/SWE1R-Mods/tools/textures/" + image + ".png"
+        if exists(image_path):
+            bpy.data.images.load("C:/Users/louri/Documents/GitHub/SWE1R-Mods/tools/textures/" + image + ".png", check_existing=True)
+            tex = bpy.data.images.get(image + '.png')
+            image_node = material.node_tree.nodes["Image Texture"]
+            image_node.image = tex
+
+    else:
+        material = bpy.data.materials.new('material_blank')
+        material.use_nodes = True
+        material.node_tree.nodes["Principled BSDF"].inputs[5].default_value = 0
+        colors = node['visuals']['material']['unk_data']
+        #print(colors)
+        material.node_tree.nodes["Principled BSDF"].inputs[0].default_value = [colors["r"]/255, colors["g"]/255, colors["b"]/255, colors["t"]/255]
+        node_1 = material.node_tree.nodes.new("ShaderNodeVertexColor")
+        material.node_tree.links.new(node_1.outputs["Color"], material.node_tree.nodes['Principled BSDF'].inputs["Normal"])
+        
+    return material
+
+def make_visuals(mesh_node, model, parent):
+    start = 0
+    verts = [[vert['x'], vert['y'], vert['z']] for vert in mesh_node['visuals']['vert_buffer']]
+    edges = []
+    faces = []
+
+    for index in mesh_node['visuals']['index_buffer']:
+        if index['type'] == 1:
+            start = index['start']
+        elif index['type'] == 5:
+            faces.append([start + index['x'], start + index['y'], start + index['z']])
+        elif index['type'] == 6:
+            faces.append([start + index['x1'], start + index['y1'], start + index['z1']])
+            faces.append([start + index['x2'], start + index['y2'], start + index['z2']])
+    
+    print('verts', len(verts))
+    print('faces', faces)
+    
+    mesh_name = mesh_node['id'] + "_" + "visuals"
+    mesh = bpy.data.meshes.new(mesh_name)
+    obj = bpy.data.objects.new(mesh_name, mesh)
+    
+    obj['type'] = 'VIS'    
+    obj.scale = [scale, scale, scale]
+
+    model['collection'].objects.link(obj)
+    mesh.from_pydata(verts, edges, faces)
+    obj.parent = parent
+    
+    mesh.materials.append(make_material(mesh_node))
+    
+    #set vector colors / uv coords
+    uv_layer = mesh.uv_layers.new(name = 'uv')
+    color_layer = mesh.vertex_colors.new(name = 'colors') #color layer has to come after uv_layer
+    for poly in mesh.polygons:
+        for p in range(len(poly.vertices)):
+            v = mesh_node['visuals']['vert_buffer'][poly.vertices[p]]
+            c = v['v_color']
+            color = [c[0]/255, c[1]/255, c[2]/255, c[3]/255]
+            uv_layer.data[poly.loop_indices[p]].uv = [v['uv_x']/4096, v['uv_y']/4096]
+            color_layer.data[poly.loop_indices[p]].color = color
+    
+    
+    
+    return
+
+def make_collision(mesh_node, model, parent):
     if not 'collision' in mesh_node:
         return
     
@@ -365,7 +501,7 @@ def make_mesh_group(mesh_node, model, parent):
     edges = []
     faces = []
     start = 0
-    vert_strips = [mesh_node['vert_strip_default'] for s in range(mesh_node['vert_strip_count'])]
+    vert_strips = [mesh_node['collision']['strip_size'] for s in range(mesh_node['collision']['strip_count'])]
     
     if(mesh_node['collision']['vert_strips'] != 0): #if there is a provided strip buffer
         vert_strips = mesh_node['collision']['vert_strips']
@@ -392,7 +528,6 @@ def make_mesh_group(mesh_node, model, parent):
     mesh = bpy.data.meshes.new(mesh_name)
     obj = bpy.data.objects.new(mesh_name, mesh)
     
-    obj['vert_strips'] = mesh_node['collision']['vert_strips']
     obj['type'] = 'COL'    
     obj.scale = [scale, scale, scale]
 
@@ -409,8 +544,13 @@ def make_mesh_group(mesh_node, model, parent):
     obj.id_properties_ui('fog_color').update(subtype='COLOR')
     obj.id_properties_ui('lights_ambient_color').update(subtype='COLOR')
     obj.id_properties_ui('lights_color').update(subtype='COLOR')
-    
-   
+
+def make_mesh_group(mesh_node, model, parent):
+    if 'collision' in mesh_node and mesh_node['collision']['vert_buffer'] != 0 and len(mesh_node['collision']['vert_buffer']) > 2:
+        make_collision(mesh_node, model, parent)
+        
+    if 'visuals' in mesh_node and mesh_node['visuals']['index_buffer'] != 0 and mesh_node['visuals']['vert_buffer'] != 0 :
+        make_visuals(mesh_node, model, parent)
 
 def read_mesh_group(buffer, cursor, model, parent):
     mesh = {
@@ -419,6 +559,8 @@ def read_mesh_group(buffer, cursor, model, parent):
             'data': read_collision_data(buffer=buffer, cursor=readUInt32BE(buffer,cursor + 4)),
             'vert_strips': read_collision_vert_strips(buffer=buffer, cursor=readUInt32BE(buffer,cursor + 36), count=readInt16BE(buffer, cursor + 32), default=readInt16BE(buffer, cursor + 34)),
             'vert_buffer': read_collision_vert_buffer(buffer=buffer, cursor=readUInt32BE(buffer,cursor + 44), count=readInt16BE(buffer, cursor + 56)),
+            'strip_count': readInt16BE(buffer, cursor + 32),
+            'strip_size': readInt16BE(buffer, cursor + 34)
         },
         'visuals': {
             'material': read_mat(buffer=buffer, cursor=readUInt32BE(buffer,cursor), model=model),
@@ -426,9 +568,7 @@ def read_mesh_group(buffer, cursor, model, parent):
             'vert_buffer': read_visual_vert_buffer(buffer=buffer, cursor=readUInt32BE(buffer,cursor + 52), count=readInt16BE(buffer, cursor + 58)),
             'group_parent': readUInt32BE(buffer,cursor + 40),
             'group_count': readInt16BE(buffer, cursor + 62)
-        },
-        'vert_strip_count': readInt16BE(buffer, cursor + 32),
-        'vert_strip_default': readInt16BE(buffer, cursor + 34)
+        }
     }
     
     make_mesh_group(mesh, model, parent)
@@ -766,7 +906,7 @@ def read_block(file, arr, selector):
 
 file_path = 'C:/Users/louri/Documents/GitHub/SWE1R-Mods/tools/in/out_modelblock.bin'
 
-selector = [115]
+selector = [141]
 
 with open(file_path, 'rb') as file:
     file = file.read()
