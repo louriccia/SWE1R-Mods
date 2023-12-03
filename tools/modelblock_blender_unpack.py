@@ -354,21 +354,25 @@ def read_visual_vert_buffer(buffer, cursor, count):
         })
     return vert_buffer
 
-def make_material(node):
-    if (node['visuals']['material']['texture_data'] != 0):                   
-        offset = str(node['visuals']['material']['offset'])
-        testmat = bpy.data.materials.get(offset)
+def make_material(mat, tex):
+    if (mat['texture'] != 0):
         
+        offset = str(mat['id'])
+        
+        material = bpy.data.materials.get(offset)
+        if material is not None:
+            return material
         
         material = bpy.data.materials.new(offset)
         material.use_nodes = True
         #material.blend_method = 'BLEND' #use for transparency
         material.blend_method = 'CLIP'
-        if node['visuals']['material']['texture_data']['format'] == 3:
+        print(material)
+        if tex['format'] == 3:
             material.blend_method = 'BLEND'
-        if node['visuals']['material']['format'] != 6:
+        if mat['format'] != 6:
             material.use_backface_culling = True
-        if node['visuals']['material']['unk_data']['unk1'] == 8:
+        if mat['unk']['unk1'] == 8:
             material.show_transparent_back = False
         else:
             material.show_transparent_back = True
@@ -385,22 +389,22 @@ def make_material(node):
         material.node_tree.nodes["Principled BSDF"].inputs[5].default_value = 0
         material.node_tree.nodes["Principled BSDF"].inputs[7].default_value = 0 #turn off specular
         
-        image = str(node['visuals']['material']['texture_data']['tex_index'])
+        image = str(tex['tex_index'])
         if image in ["1167", "1077", "1461", "1596"]: #probably shouldn't do it this way; TODO find specific tag
             material.blend_method = 'BLEND'
             material.node_tree.links.new(node_1.outputs["Color"], material.node_tree.nodes['Principled BSDF'].inputs["Alpha"])
         
-        if node['visuals']['material']['format'] in [31, 15, 7]:
+        if mat['format'] in [31, 15, 7]:
             material.node_tree.links.new(node_2.outputs["Color"], material.node_tree.nodes['Principled BSDF'].inputs["Normal"])
             material.node_tree.links.new(node_1.outputs["Color"], material.node_tree.nodes['Principled BSDF'].inputs["Base Color"])
         
-        if(node['visuals']['material']['texture_data']['unk_pointer']['unk0'] & 0x11 != 0):
+        if('unk_pointer' in tex and tex['unk_pointer']['unk0'] & 0x11 != 0):
             node_4 = material.node_tree.nodes.new("ShaderNodeUVMap")
             node_5 = material.node_tree.nodes.new("ShaderNodeSeparateXYZ")
             node_6 = material.node_tree.nodes.new("ShaderNodeCombineXYZ")
             material.node_tree.links.new(node_4.outputs["UV"], node_5.inputs["Vector"])
             material.node_tree.links.new(node_6.outputs["Vector"], node_1.inputs["Vector"])
-            if(node['visuals']['material']['texture_data']['unk_pointer']['unk0'] & 0x11 == 0x11):
+            if(tex['unk_pointer']['unk0'] & 0x11 == 0x11):
                 node_7 = material.node_tree.nodes.new("ShaderNodeMath")
                 node_7.operation = 'PINGPONG'
                 node_7.inputs[1].default_value = 1
@@ -411,14 +415,14 @@ def make_material(node):
                 node_8.inputs[1].default_value = 1
                 material.node_tree.links.new(node_5.outputs["Y"], node_8.inputs["Value"])
                 material.node_tree.links.new(node_8.outputs["Value"], node_6.inputs["Y"])
-            elif(node['visuals']['material']['texture_data']['unk_pointer']['unk0'] & 0x11 == 0x01):
+            elif(tex['unk_pointer']['unk0'] & 0x11 == 0x01):
                 material.node_tree.links.new(node_5.outputs["X"], node_6.inputs["X"])
                 node_7 = material.node_tree.nodes.new("ShaderNodeMath")
                 node_7.operation = 'PINGPONG'
                 node_7.inputs[1].default_value = 1
                 material.node_tree.links.new(node_5.outputs["Y"], node_7.inputs["Value"])
                 material.node_tree.links.new(node_7.outputs["Value"], node_6.inputs["Y"])
-            elif(node['visuals']['material']['texture_data']['unk_pointer']['unk0'] & 0x11 == 0x10):
+            elif(tex['unk_pointer']['unk0'] & 0x11 == 0x10):
                 node_7 = material.node_tree.nodes.new("ShaderNodeMath")
                 node_7.operation = 'PINGPONG'
                 node_7.inputs[1].default_value = 1
@@ -426,7 +430,7 @@ def make_material(node):
                 material.node_tree.links.new(node_7.outputs["Value"], node_6.inputs["X"])
                 material.node_tree.links.new(node_5.outputs["Y"], node_6.inputs["Y"])
         image_path = "C:/Users/louri/Documents/GitHub/SWE1R-Mods/tools/textures/" + image + ".png"
-        if exists(image_path):
+        if os.path.exists(image_path):
             bpy.data.images.load("C:/Users/louri/Documents/GitHub/SWE1R-Mods/tools/textures/" + image + ".png", check_existing=True)
             tex = bpy.data.images.get(image + '.png')
             image_node = material.node_tree.nodes["Image Texture"]
@@ -436,7 +440,7 @@ def make_material(node):
         material = bpy.data.materials.new('material_blank')
         material.use_nodes = True
         material.node_tree.nodes["Principled BSDF"].inputs[5].default_value = 0
-        colors = node['visuals']['material']['unk_data']
+        colors = mat['unk']
         #print(colors)
         material.node_tree.nodes["Principled BSDF"].inputs[0].default_value = [colors["r"]/255, colors["g"]/255, colors["b"]/255, colors["t"]/255]
         node_1 = material.node_tree.nodes.new("ShaderNodeVertexColor")
@@ -473,7 +477,11 @@ def make_visuals(mesh_node, model, parent):
     mesh.from_pydata(verts, edges, faces)
     obj.parent = parent
     
-    mesh.materials.append(make_material(mesh_node))
+    mat = model['mats'][mesh_node['visuals']['material']]
+    tex = None if mat['texture'] == 0 else model['textures'][mat['texture']]
+    mesh.materials.append(
+        make_material(mat, tex)
+    )
     
     #set vector colors / uv coords
     uv_layer = mesh.uv_layers.new(name = 'uv')
@@ -485,8 +493,6 @@ def make_visuals(mesh_node, model, parent):
             color = [c[0]/255, c[1]/255, c[2]/255, c[3]/255]
             uv_layer.data[poly.loop_indices[p]].uv = [v['uv_x']/4096, v['uv_y']/4096]
             color_layer.data[poly.loop_indices[p]].color = color
-    
-    
     
     return
 
@@ -906,7 +912,7 @@ def read_block(file, arr, selector):
 
 file_path = 'C:/Users/louri/Documents/GitHub/SWE1R-Mods/tools/in/out_modelblock.bin'
 
-selector = [141]
+selector = [115]
 
 with open(file_path, 'rb') as file:
     file = file.read()
