@@ -26,7 +26,6 @@ def read_Data(buffer, cursor, model):
     model['Data'] = {'LStr': [], 'other': []}
     size = readUInt32BE(buffer, cursor)
     cursor += 4
-    print('size', size)
     i = 0
     while i < size:
         if readString(buffer, cursor) == 'LStr':
@@ -354,6 +353,11 @@ def read_visual_vert_buffer(buffer, cursor, count):
         })
     return vert_buffer
 
+    
+
+        
+    
+
 def make_material(mat, tex):
     if (mat['texture'] != 0):
         
@@ -367,7 +371,6 @@ def make_material(mat, tex):
         material.use_nodes = True
         #material.blend_method = 'BLEND' #use for transparency
         material.blend_method = 'CLIP'
-        print(material)
         if tex['format'] == 3:
             material.blend_method = 'BLEND'
         if mat['format'] != 6:
@@ -398,13 +401,13 @@ def make_material(mat, tex):
             material.node_tree.links.new(node_2.outputs["Color"], material.node_tree.nodes['Principled BSDF'].inputs["Normal"])
             material.node_tree.links.new(node_1.outputs["Color"], material.node_tree.nodes['Principled BSDF'].inputs["Base Color"])
         
-        if('unk_pointer' in tex and tex['unk_pointer']['unk0'] & 0x11 != 0):
+        if(len(tex['unk_pointers']) and tex['unk_pointers'][0]['unk0'] & 0x11 != 0):
             node_4 = material.node_tree.nodes.new("ShaderNodeUVMap")
             node_5 = material.node_tree.nodes.new("ShaderNodeSeparateXYZ")
             node_6 = material.node_tree.nodes.new("ShaderNodeCombineXYZ")
             material.node_tree.links.new(node_4.outputs["UV"], node_5.inputs["Vector"])
             material.node_tree.links.new(node_6.outputs["Vector"], node_1.inputs["Vector"])
-            if(tex['unk_pointer']['unk0'] & 0x11 == 0x11):
+            if(tex['unk_pointers'][0]['unk0'] & 0x11 == 0x11):
                 node_7 = material.node_tree.nodes.new("ShaderNodeMath")
                 node_7.operation = 'PINGPONG'
                 node_7.inputs[1].default_value = 1
@@ -415,26 +418,27 @@ def make_material(mat, tex):
                 node_8.inputs[1].default_value = 1
                 material.node_tree.links.new(node_5.outputs["Y"], node_8.inputs["Value"])
                 material.node_tree.links.new(node_8.outputs["Value"], node_6.inputs["Y"])
-            elif(tex['unk_pointer']['unk0'] & 0x11 == 0x01):
+            elif(tex['unk_pointers'][0]['unk0'] & 0x11 == 0x01):
                 material.node_tree.links.new(node_5.outputs["X"], node_6.inputs["X"])
                 node_7 = material.node_tree.nodes.new("ShaderNodeMath")
                 node_7.operation = 'PINGPONG'
                 node_7.inputs[1].default_value = 1
                 material.node_tree.links.new(node_5.outputs["Y"], node_7.inputs["Value"])
                 material.node_tree.links.new(node_7.outputs["Value"], node_6.inputs["Y"])
-            elif(tex['unk_pointer']['unk0'] & 0x11 == 0x10):
+            elif(tex['unk_pointers'][0]['unk0'] & 0x11 == 0x10):
                 node_7 = material.node_tree.nodes.new("ShaderNodeMath")
                 node_7.operation = 'PINGPONG'
                 node_7.inputs[1].default_value = 1
                 material.node_tree.links.new(node_5.outputs["X"], node_7.inputs["Value"])
                 material.node_tree.links.new(node_7.outputs["Value"], node_6.inputs["X"])
                 material.node_tree.links.new(node_5.outputs["Y"], node_6.inputs["Y"])
-        image_path = "C:/Users/louri/Documents/GitHub/SWE1R-Mods/tools/textures/" + image + ".png"
-        if os.path.exists(image_path):
-            bpy.data.images.load("C:/Users/louri/Documents/GitHub/SWE1R-Mods/tools/textures/" + image + ".png", check_existing=True)
-            tex = bpy.data.images.get(image + '.png')
-            image_node = material.node_tree.nodes["Image Texture"]
-            image_node.image = tex
+
+        b_tex = bpy.data.images.get(image)
+        if b_tex is None:
+            b_tex = make_texture(tex)
+
+        image_node = material.node_tree.nodes["Image Texture"]
+        image_node.image = b_tex
 
     else:
         material = bpy.data.materials.new('material_blank')
@@ -462,9 +466,6 @@ def make_visuals(mesh_node, model, parent):
         elif index['type'] == 6:
             faces.append([start + index['x1'], start + index['y1'], start + index['z1']])
             faces.append([start + index['x2'], start + index['y2'], start + index['z2']])
-    
-    print('verts', len(verts))
-    print('faces', faces)
     
     mesh_name = mesh_node['id'] + "_" + "visuals"
     mesh = bpy.data.meshes.new(mesh_name)
@@ -905,10 +906,133 @@ def read_block(file, arr, selector):
     return arr
 
 
+def read_palette(buffer, format):
+    format_map = {
+        512: 16,
+        513: 256
+    }
+
+    if not buffer:
+        return []
+
+    palette = []
+    for cursor in range(0, format_map.get(format, 0) * 2, 2):
+        color = readInt16BE(buffer, cursor)
+        a = (color >> 0) & 0x1 * 0xFF
+        b = round((((color >> 1) & 0x1F) / 0x1F) * 255)
+        g = round((((color >> 6) & 0x1F) / 0x1F) * 255)
+        r = round((((color >> 11) & 0x1F) / 0x1F) * 255)
+        if (r + g + b) > 0 and a == 0:
+            a = 255
+        palette.append([r, g, b, a])
+
+    return palette
+
+def read_pixels(buffer, format, pixel_count):
+    pixels = []
+    cursor = 0
+
+    print(len(buffer), pixel_count)
+    if format == 3:
+        for i in range(pixel_count):
+            r, g, b, a = struct.unpack('BBBB', buffer[cursor:cursor + 4])
+            pixels.append([r, g, b, a])
+            cursor += 4
+
+    elif format == 512:
+        for i in range(round(pixel_count/2)):
+            p = buffer[cursor]
+            pixel_0 = (p >> 4) & 0xF
+            pixel_1 = p & 0xF
+            pixels.extend([pixel_0, pixel_1])
+            cursor += 1
+
+    elif format == 513:
+        for i in range(pixel_count):
+            pixel = buffer[cursor]
+            pixels.append(pixel)
+            cursor += 1
+
+    elif format == 1024:
+        for i in range(pixel_count):
+            p = buffer[cursor]
+            pixel_0 = ((p >> 4) & 0xF) * 0x11
+            pixel_1 = (p & 0xF) * 0x11
+            pixels.extend([pixel_0, pixel_1])
+            cursor += 1
+
+    elif format == 1025:
+        for i in range(pixel_count):
+            pixel = buffer[cursor]
+            pixels.append(pixel)
+            cursor += 1
+
+    return pixels
 
 
+def draw_texture(pixels, palette, width, height, format, path, index):
+    
+    if not pixels:
+        print(f"Texture {index} does not have any pixels")
+        return
 
+    if None in [format, width, height]:
+        print(f"Texture {index} is missing width/height/format data")
+        return
 
+    new_image = bpy.data.images.new(name=str(index), width=width, height=height)
+    image_pixels = []    
+
+    for i in range(height):
+        for j in range(width):
+            ind = i * width + j
+            p = None
+            color = None
+
+            if format in [512, 513]:
+                p = palette[pixels[ind]]
+                color = [p[0] if p else 0, p[1] if p else 0, p[2] if p else 0, p[3] if p else 0]
+
+            elif format in [1024, 1025]:
+                p = pixels[ind]
+                color = [p if p else 0, p if p else 0, p if p else 0, 255]
+
+            elif format == 3:
+                p = pixels[ind]
+                color = [p[0] if p else 0, p[1] if p else 0, p[2] if p else 0, p[3] if p else 0]
+
+            x = 0
+
+            # Certain textures in the pc release are scrambled and must use the following code to be drawn correctly
+#            if i % 2 == 1 and index in [49, 58, 99, 924, 966, 972, 991, 992, 1000, 1048, 1064]:
+#                if j // 8 % 2 == 0:
+#                    x = 8
+#                else:
+#                    x = -8
+
+            image_pixels.extend(color)
+           
+    print('pixels', [c/255 for c in image_pixels]) 
+    new_image.pixels = image_pixels
+
+    return new_image
+
+def make_texture(texture):
+    file_path = 'C:/Users/louri/Documents/GitHub/SWE1R-Mods/tools/in/out_textureblock.bin'
+    selector = [texture['tex_index']]
+
+    with open(file_path, 'rb') as file:
+        file = file.read()
+        read_block_result = read_block(file, [[], []], selector)
+
+    pixel_buffers, palette_buffers = read_block_result
+    tex = None
+    for i, buffer in enumerate(pixel_buffers):
+        pixels = read_pixels(buffer, texture['format'], texture['width']*texture['height'])
+        palette = read_palette(palette_buffers[i], texture['format'])
+        tex = draw_texture(pixels, palette, texture['width'], texture['height'], texture['format'], str(i) + '.png', i)
+        
+    return tex
 
 file_path = 'C:/Users/louri/Documents/GitHub/SWE1R-Mods/tools/in/out_modelblock.bin'
 
