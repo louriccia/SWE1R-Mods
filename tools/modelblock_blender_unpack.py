@@ -12,6 +12,9 @@ for obj in bpy.data.objects:
     
 for col in bpy.data.collections:
     bpy.data.collections.remove(col)
+    
+for img in bpy.data.images:
+    bpy.data.images.remove(img)
 
 scale = 0.01
 
@@ -359,10 +362,8 @@ def read_visual_vert_buffer(buffer, cursor, count):
     
 
 def make_material(mat, tex):
+    offset = str(mat['id'])
     if (mat['texture'] != 0):
-        
-        offset = str(mat['id'])
-        
         material = bpy.data.materials.get(offset)
         if material is not None:
             return material
@@ -441,14 +442,14 @@ def make_material(mat, tex):
         image_node.image = b_tex
 
     else:
-        material = bpy.data.materials.new('material_blank')
+        material = bpy.data.materials.new(offset)
         material.use_nodes = True
         material.node_tree.nodes["Principled BSDF"].inputs[5].default_value = 0
         colors = mat['unk']
         #print(colors)
         material.node_tree.nodes["Principled BSDF"].inputs[0].default_value = [colors["r"]/255, colors["g"]/255, colors["b"]/255, colors["t"]/255]
         node_1 = material.node_tree.nodes.new("ShaderNodeVertexColor")
-        material.node_tree.links.new(node_1.outputs["Color"], material.node_tree.nodes['Principled BSDF'].inputs["Normal"])
+        material.node_tree.links.new(node_1.outputs["Color"], material.node_tree.nodes['Principled BSDF'].inputs["Base Color"])
         
     return material
 
@@ -890,7 +891,6 @@ def read_block(file, arr, selector):
     chunks = len(arr)
     
     for i in (selector if len(selector) else range(asset_count)):
-        print(i)
         for j in range(chunks):
             asset_start = readUInt32BE(file, 4 + i*4*chunks + j * 4)
             cursor += 4
@@ -918,7 +918,7 @@ def read_palette(buffer, format):
     palette = []
     for cursor in range(0, format_map.get(format, 0) * 2, 2):
         color = readInt16BE(buffer, cursor)
-        a = (color >> 0) & 0x1 * 0xFF
+        a = ((color >> 0) & 0x1) * 0xFF
         b = round((((color >> 1) & 0x1F) / 0x1F) * 255)
         g = round((((color >> 6) & 0x1F) / 0x1F) * 255)
         r = round((((color >> 11) & 0x1F) / 0x1F) * 255)
@@ -931,8 +931,7 @@ def read_palette(buffer, format):
 def read_pixels(buffer, format, pixel_count):
     pixels = []
     cursor = 0
-
-    print(len(buffer), pixel_count)
+    
     if format == 3:
         for i in range(pixel_count):
             r, g, b, a = struct.unpack('BBBB', buffer[cursor:cursor + 4])
@@ -954,7 +953,7 @@ def read_pixels(buffer, format, pixel_count):
             cursor += 1
 
     elif format == 1024:
-        for i in range(pixel_count):
+        for i in range(round(pixel_count/2)):
             p = buffer[cursor]
             pixel_0 = ((p >> 4) & 0xF) * 0x11
             pixel_1 = (p & 0xF) * 0x11
@@ -1012,8 +1011,7 @@ def draw_texture(pixels, palette, width, height, format, path, index):
 
             image_pixels.extend(color)
            
-    print('pixels', [c/255 for c in image_pixels]) 
-    new_image.pixels = image_pixels
+    new_image.pixels = [p/255 for p in image_pixels]
 
     return new_image
 
@@ -1030,13 +1028,13 @@ def make_texture(texture):
     for i, buffer in enumerate(pixel_buffers):
         pixels = read_pixels(buffer, texture['format'], texture['width']*texture['height'])
         palette = read_palette(palette_buffers[i], texture['format'])
-        tex = draw_texture(pixels, palette, texture['width'], texture['height'], texture['format'], str(i) + '.png', i)
+        tex = draw_texture(pixels, palette, texture['width'], texture['height'], texture['format'], str(selector[i]) + '.png',  str(selector[i]))
         
     return tex
 
 file_path = 'C:/Users/louri/Documents/GitHub/SWE1R-Mods/tools/in/out_modelblock.bin'
 
-selector = [115]
+selector = [232]
 
 with open(file_path, 'rb') as file:
     file = file.read()
