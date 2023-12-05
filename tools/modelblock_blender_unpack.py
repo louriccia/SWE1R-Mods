@@ -286,8 +286,8 @@ def read_collision_data(buffer, cursor):
         'lights_rot': [ readFloatBE(buffer, cursor + 32), readFloatBE(buffer, cursor + 36),  readFloatBE(buffer, cursor + 40)],
         'flags': readUInt32BE(buffer,cursor + 44),  # >>> 0).toString(2),
         'unk3': readUInt32BE(buffer,cursor + 48),
-        'unload': readUInt32BE(buffer,cursor + 52),  # >>> 0).toString(2),
-        'load': readUInt32BE(buffer,cursor + 56),  # >>> 0).toString(2),
+        'unload': bin(readUInt32BE(buffer,cursor + 52)),  # >>> 0).toString(2),
+        'load': bin(readUInt32BE(buffer,cursor + 56)),  # >>> 0).toString(2),
         'triggers': read_collision_triggers(buffer=buffer, cursor=readUInt32BE(buffer,cursor + 60))
     }
 
@@ -495,6 +495,10 @@ def make_visuals(mesh_node, model, parent):
             color = [c[0]/255, c[1]/255, c[2]/255, c[3]/255]
             uv_layer.data[poly.loop_indices[p]].uv = [v['uv_x']/4096, v['uv_y']/4096]
             color_layer.data[poly.loop_indices[p]].color = color
+            if(mesh_name == '1044_visuals'):
+                print(p, poly.vertices[p], poly.loop_indices[p], c, [v['uv_x'], v['uv_y']])
+
+
     
     return
 
@@ -1034,7 +1038,7 @@ def make_texture(texture):
 
 file_path = 'C:/Users/louri/Documents/GitHub/SWE1R-Mods/tools/in/out_modelblock.bin'
 
-selector = [232]
+selector = [1]
 
 with open(file_path, 'rb') as file:
     file = file.read()

@@ -69,6 +69,34 @@ def unmake_collision_vert_strips(mesh):
             
     return strips
     
+def unmake_visual_vert_buffer(mesh):
+    vert_buffer =  [{
+            'x': round(vert.co[0]), 
+            'y': round(vert.co[1]), 
+            'z': round(vert.co[2])
+            } for i, vert in enumerate(mesh.data.vertices)]
+    color_layer = mesh.data.vertex_colors.active.data
+    uv_layer = mesh.data.uv_layers.active.data
+    
+    for poly in mesh.data.polygons:
+        for p in range(len(poly.vertices)):
+            uv = [round(u*4096) for u in uv_layer[poly.loop_indices[p]].uv]
+            vert_buffer[poly.vertices[p]]['uv_x'] = uv[0]
+            vert_buffer[poly.vertices[p]]['uv_y'] = uv[1]
+            vert_buffer[poly.vertices[p]]['v_color'] = [round(c*255) for c in color_layer[poly.loop_indices[p]].color]
+            
+    
+#    if color_layer == None or uv_layer == None:
+#        return None
+
+    return vert_buffer
+
+def unmake_visual_index_buffer(mesh):
+    index_buffer = [[v for v in face.vertices] for face in mesh.data.polygons]
+    print(mesh.name)
+    print(index_buffer)
+    
+    
 def unmake_mesh_group(mesh):
     mesh_group = {
         'collision': {
@@ -77,6 +105,13 @@ def unmake_mesh_group(mesh):
             'vert_strips': 0,
             'strip_count': 0,
             'strip_size': 3
+        },
+        'visuals': {
+            'material': 0,
+            'index_buffer': [],
+            'vert_buffer': [],
+            'group_parent': 0,
+            'group_count': 0
         }
     }
     if mesh['type'] == 'COL':
@@ -89,6 +124,9 @@ def unmake_mesh_group(mesh):
                 mesh_group['collision']['strip_size'] = vert_strips[0]
             else:
                 mesh_group['collision']['vert_strips'] = vert_strips
+    elif mesh['type'] == 'VIS':
+        mesh_group['visuals']['vert_buffer'] = unmake_visual_vert_buffer(mesh)
+        mesh_group['visuals']['index_buffer'] = unmake_visual_index_buffer(mesh)
 
     return mesh_group
     
@@ -134,7 +172,7 @@ def unmake_model(collection):
     for node in top_nodes:
         model['nodes'].append(unmake_node(node))
         
-    print(model)
+    #print(model)
 
 
 for col in bpy.data.collections:
