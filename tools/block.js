@@ -202,6 +202,25 @@ exports.write_mat = function ({ buffer, cursor, mat_id, hl, model } = {}) {
     exports.map_ref({ cursor, id: mat_id, model })
     let mat = model.mats[mat_id]
     cursor = buffer.writeInt32BE(mat.format, cursor)
+    //0000001   1   254 1 = lightmap
+    //0000010   2   253 no apparent changes
+    //0000100   4   251 
+    //0001000   8   247 0 = double sided, 1 = single sided
+    //0010000   16  239 1 = weird lighting
+    //0100000   32  223 
+    //1000000   64  191 1 =  breaking change
+
+    //0000100 format 4 is only used for engine trail, binder, and flame effects
+    //0000110 format 6 seems to indicate doublesidedness
+    //0000111 format 7
+    //0001100 format 12 is for any kind of skybox material
+    //0001110 14/15/71 are used for a majority
+    //0001111 15
+    //1000110 70
+    //1000111 71
+    //0010111 23/31/87 are used exclusively with texture 35 possibly for sheen
+    //0011111
+    //1010111
     cursor += 12
     if (mat.texture) {
         let tex_id = mat.texture
