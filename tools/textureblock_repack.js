@@ -4,7 +4,7 @@ const {textures} = require('./_textures')
 
 let replacements = []
 for (r = 0; r < 1648; r++) {
-    if (fs.existsSync('textures/rep/' + r + '.png') && [512, 513, 1024, 1025].includes(textures[r].format)) {
+    if (fs.existsSync('textures/rep/' + r + '.png')) {
         console.log("found " + r + " replacement")
         replacements[r] = read_texture({ path: 'textures/rep/' + r + '.png', data: textures[r] })
         

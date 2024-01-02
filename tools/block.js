@@ -291,18 +291,21 @@ exports.write_mat_texture = function ({ buffer, cursor, tex_id, hl, model } = {}
     }
     model.textures[tex_id].write = cursor
     exports.map_ref({ cursor, id: tex_id, model })
-    // USE TO MAXIMIZE PALETTE SIZE
-    // if ([1024, 1025].includes(texture.format)) {
-    //     texture.format = 1025
-    // }
-    // if ([512, 513].includes(texture.format)) {
-    //     texture.format = 513
-    // }
-    texture.width = texture.width * 4
-    texture.height = texture.height * 4
+    // USE TO SUPPORT 4X TEXTURES
+    if (false) {
+        if ([1024, 1025].includes(texture.format)) {
+            texture.format = 1025
+        }
+        if ([512, 513].includes(texture.format)) {
+            texture.format = 513
+        }
+        texture.width = texture.width * 4
+        texture.height = texture.height * 4
+    }
+
     cursor = buffer.writeInt32BE(texture.unk0, cursor)             //0, 1, 65, 73
-    cursor = buffer.writeInt16BE(texture.width * 4, cursor)       //width * 4 //texture.unk1
-    cursor = buffer.writeInt16BE(texture.height * 4, cursor)       //height * 4 //texture.unk2,
+    cursor = buffer.writeUInt16BE(texture.width * 4, cursor)       //width * 4 //texture.unk1
+    cursor = buffer.writeUInt16BE(texture.height * 4, cursor)       //height * 4 //texture.unk2,
     cursor = buffer.writeInt32BE(texture.unk3, cursor)         //always 0
     cursor = buffer.writeInt16BE(texture.format, cursor)     //3, 512, 513, 1024
     cursor = buffer.writeInt16BE(texture.unk4, cursor)       //0, 4
@@ -1721,7 +1724,7 @@ exports.draw_texture = async function ({ pixels, palette, width, height, format,
             let x = 0
 
             //certain textures in the pc release are scrambled and must use the following code to be drawn correctly
-            if (i % 2 == 1 && [49, 58, 99, 924, 966, 972, 991, 992, 1000, 1048, 1064].includes(index)) {
+            if (i % 2 == 1 && [49, 58, 99, 924, 966, 972, 991, 992, 1000, 1014, 1048, 1064].includes(index)) {
                 if (Math.floor(j / 8) % 2 == 0) {
                     x = 8
                 } else {
@@ -1754,16 +1757,19 @@ exports.read_texture = async function ({ path, data } = {}) {
             pixels: []
         }
         // USE TO MAXIMIZE PALETTE SIZE
-        // if(texture.format == 512){
-        //     texture.format = 513
-        // }
-        // if(texture.format == 1024){
-        //     texture.format = 1025
-        // }
+        if(false){
+            if (texture.format == 512) {
+                texture.format = 513
+            }
+            if (texture.format == 1024) {
+                texture.format = 1025
+            }
+        }
+
         for (i = texture.height - 1; i >= 0; i--) {
             for (j = 0; j < texture.width; j++) {
                 let color = Object.values(Jimp.intToRGBA(image.getPixelColor(j, i)))
-                switch(texture.format){
+                switch (texture.format) {
                     case 512:
                     case 513:
                         let pindex = texture.palette.findIndex(p => p[0] == color[0] && p[1] == color[1] && p[2] == color[2] && p[3] == color[3])
