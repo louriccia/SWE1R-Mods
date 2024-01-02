@@ -1,4 +1,5 @@
 const Jimp = require('jimp');
+
 exports.highlight = function ({ cursor, hl } = {}) {
     //this function is called whenever an address need to be 'highlighted' because it is a pointer
     //every model begins with a pointer map where each bit represents 4 bytes in the following model 
@@ -290,9 +291,18 @@ exports.write_mat_texture = function ({ buffer, cursor, tex_id, hl, model } = {}
     }
     model.textures[tex_id].write = cursor
     exports.map_ref({ cursor, id: tex_id, model })
+    // USE TO MAXIMIZE PALETTE SIZE
+    // if ([1024, 1025].includes(texture.format)) {
+    //     texture.format = 1025
+    // }
+    // if ([512, 513].includes(texture.format)) {
+    //     texture.format = 513
+    // }
+    texture.width = texture.width * 4
+    texture.height = texture.height * 4
     cursor = buffer.writeInt32BE(texture.unk0, cursor)             //0, 1, 65, 73
-    cursor = buffer.writeInt16BE(texture.unk1, cursor)       //width * 4
-    cursor = buffer.writeInt16BE(texture.unk2, cursor)       //height * 4
+    cursor = buffer.writeInt16BE(texture.width * 4, cursor)       //width * 4 //texture.unk1
+    cursor = buffer.writeInt16BE(texture.height * 4, cursor)       //height * 4 //texture.unk2,
     cursor = buffer.writeInt32BE(texture.unk3, cursor)         //always 0
     cursor = buffer.writeInt16BE(texture.format, cursor)     //3, 512, 513, 1024
     cursor = buffer.writeInt16BE(texture.unk4, cursor)       //0, 4
@@ -549,7 +559,6 @@ exports.write_animation = function ({ buffer, cursor, animation, hl, model } = {
 
 exports.read_collision_vert_strips = function ({ buffer, cursor, count, def } = {}) {
     if (!cursor) {
-        console.log('no buffer', count, def)
         return 0
     }
     let vert_strips = []
@@ -1560,7 +1569,7 @@ exports.read_palette = function ({ buffer, format } = {}) {
         return []
     }
     let palette = []
-    for (let cursor = 0; cursor < format_map[format] * 2; cursor += 2) {
+    for (let cursor = 0; cursor < format_map[format] * 2 && cursor < buffer.length; cursor += 2) {
         let color = buffer.readInt16BE(cursor)
         let a = ((color >> 0) & 0x1) * 0xFF
         let b = Math.round((((color >> 1) & 0x1F) / 0x1F) * 255)
@@ -1730,12 +1739,12 @@ exports.draw_texture = async function ({ pixels, palette, width, height, format,
     return image
 }
 
-exports.read_texture = async function ({ path } = {}) {
-    await Jimp.read(path).then(image => {
+exports.read_texture = async function ({ path, data } = {}) {
+    return await Jimp.read(path).then(image => {
         let texture = {
-            width: texdata[r].width,
-            height: texdata[r].height,
-            format: texdata[r].format,
+            width: image.bitmap.width,
+            height: image.bitmap.height,
+            format: data.format,
             palette_offset: 0,
             palette: [],
             pages: 1,
@@ -1744,35 +1753,45 @@ exports.read_texture = async function ({ path } = {}) {
             page_offset: 28,
             pixels: []
         }
+        // USE TO MAXIMIZE PALETTE SIZE
+        // if(texture.format == 512){
+        //     texture.format = 513
+        // }
+        // if(texture.format == 1024){
+        //     texture.format = 1025
+        // }
         for (i = texture.height - 1; i >= 0; i--) {
             for (j = 0; j < texture.width; j++) {
                 let color = Object.values(Jimp.intToRGBA(image.getPixelColor(j, i)))
-                if ([512, 513].includes(texture.format)) { //build palette
-                    let pindex = null
-                    texture.palette.forEach((p, index) => {
-                        if (p[0] == color[0] && p[1] == color[1] && p[2] == color[2] && p[3] == color[3]) {
-                            pindex = index
+                switch(texture.format){
+                    case 512:
+                    case 513:
+                        let pindex = texture.palette.findIndex(p => p[0] == color[0] && p[1] == color[1] && p[2] == color[2] && p[3] == color[3])
+                        if (pindex >= 0) {
+                            texture.pixels.push(pindex)
+                            continue
                         }
-                    })
-                    if (pindex == null && ((texture.format == 512 && texture.palette.length < 16) || (texture.format == 513 && texture.palette.length < 256))) {
-                        texture.palette.push(color)
-                        texture.pixels.push(texture.palette.length - 1)
-                    } else {
-                        if (pindex == null) {
-                            pindex = 0
+                        if ((texture.format == 512 && texture.palette.length < 16) || (texture.format == 513 && texture.palette.length < 256)) {
+                            texture.palette.push(color)
+                            texture.pixels.push(texture.palette.length - 1)
+                            continue
                         }
+                        pindex = 0
+                        console.warn('palette limit exceeded!')
                         texture.pixels.push(pindex)
-                    }
-                } else if (texture.format == 1024) {
-                    texture.pixels.push(Math.floor(color[0] / 16) * 16)
-                } else if (texture.format == 1025) {
-                    texture.pixels.push(color[0])
-                } else if (texture.format == 3) {
-                    texture.pixels.push(color)
+                        break
+                    case 1024:
+                        texture.pixels.push(Math.floor(color[0] / 16) * 16)
+                        break
+                    case 1025:
+                        texture.pixels.push(color[0])
+                        break
+                    case 3:
+                        texture.pixels.push(color)
+                        break
                 }
             }
         }
-
         return texture
     })
 }
