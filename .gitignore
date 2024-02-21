@@ -5,3 +5,6 @@ tools/models
 tools/textures
 tools/sprites
 tools/splines
+tools/upres_textures
+tools/upres_texture/4x
+tools/upres_texture/swep1r upscaled textures

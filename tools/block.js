@@ -1,9 +1,10 @@
 const Jimp = require('jimp');
+const fs = require('fs');
 
 exports.highlight = function ({ cursor, hl } = {}) {
     //this function is called whenever an address need to be 'highlighted' because it is a pointer
     //every model begins with a pointer map where each bit represents 4 bytes in the following model 
-    //if the bit is 1, that corresponding DWORD is to be read as a pointer
+    //if the bit is 1, that corresponding int is to be read as a pointer
     let highlightoffset = Math.floor(cursor / 32)
     let bit = 2 ** (7 - Math.floor((cursor % 32) / 4))
     let highlight = hl.readUInt8(highlightoffset)
@@ -1575,9 +1576,9 @@ exports.read_palette = function ({ buffer, format } = {}) {
     for (let cursor = 0; cursor < format_map[format] * 2 && cursor < buffer.length; cursor += 2) {
         let color = buffer.readInt16BE(cursor)
         let a = ((color >> 0) & 0x1) * 0xFF
-        let b = Math.round((((color >> 1) & 0x1F) / 0x1F) * 255)
-        let g = Math.round((((color >> 6) & 0x1F) / 0x1F) * 255)
-        let r = Math.round((((color >> 11) & 0x1F) / 0x1F) * 255)
+        let b = Math.round(((color >> 1) & 0x1F) * (0xFF / 0x1F))
+        let g = Math.round(((color >> 6) & 0x1F) * (0xFF / 0x1F))
+        let r = Math.round(((color >> 11) & 0x1F) * (0xFF / 0x1F))
         if ((r + g + b) > 0 && a == 0) {
             a = 255
         }
@@ -1594,10 +1595,10 @@ exports.write_palette = function ({ palette }) {
     let buffer = Buffer.alloc(palette.length * 2)
     for (let j = 0; j < palette.length; j++) {
         let p = palette[j]
-        let r = parseInt(((p[0]) / 255) * 0x1F) << 11
-        let g = parseInt(((p[1]) / 255) * 0x1F) << 6
-        let b = parseInt(((p[2]) / 255) * 0x1F) << 1
-        let a = parseInt((p[3]) / 255)
+        let r = Math.round(p[0] * (0x1F / 255)) << 11
+        let g = Math.round(p[1] * (0x1F / 255)) << 6
+        let b = Math.round(p[2] * (0x1F / 255)) << 1
+        let a = Math.round((p[3]) / 255)
         let pal = (((r | g) | b) | a)
         buffer.writeUInt16BE(pal, cursor)
         cursor += 2
@@ -1606,91 +1607,106 @@ exports.write_palette = function ({ palette }) {
     return buffer
 }
 
-exports.read_pixels = function ({ buffer, format, pixel_count } = {}) {
+exports.format_map = {
+    3: 4,
+    512: 0.5,
+    513: 1,
+    1024: 0.5,
+    1025: 1
+}
+
+exports.read_pixels = function ({ buffer, format, width } = {}) {
     let pixels = []
-    let cursor = 0
-    switch (format) {
-        case 3:
-            for (let i = 0; i < pixel_count && cursor < buffer.length; i++) {
-                let r = buffer.readUInt8(cursor)
-                let g = buffer.readUInt8(cursor + 1)
-                let b = buffer.readUInt8(cursor + 2)
-                let a = buffer.readUInt8(cursor + 3)
-                let pixel = [r, g, b, a]
-                pixels.push(pixel)
-                cursor += 4
+    let padded_width = exports.pageWidthPadding(width, format)
+
+    //for each row in the pixel buffer
+    for (let r = 0; r < buffer.length; r += padded_width * exports.format_map[format]) {
+        let cursor = r
+
+        
+        //for each pixel in a row
+        for (let p = 0; p < width; p++) {
+            if(cursor >= buffer.length){
+                console.warn("buffer was shorter than expected")
+                return pixels
             }
-            break
-        case 512:
-            for (let i = 0; i < pixel_count && cursor < buffer.length; i++) {
-                let p = buffer.readUInt8(cursor)
-                let pixel_0 = (p >> 4) & 0xF
-                let pixel_1 = p & 0xF
-                pixels.push(pixel_0, pixel_1)
-                cursor++
+            let p8 = buffer.readUInt8(Math.floor(cursor))
+            switch (format) {
+                case 3:
+                    let r = p8
+                    let g = buffer.readUInt8(cursor + 1)
+                    let b = buffer.readUInt8(cursor + 2)
+                    let a = buffer.readUInt8(cursor + 3)
+                    pixels.push([r, g, b, a])
+                    cursor += 4
+                    break
+                case 512:
+                case 1024:
+                    let p4 = (p8 >> 4) & 0xF
+                    if (cursor % 1 !== 0) {
+                        p4 = (p8) & 0xF
+                    }
+                    pixels.push(p4)
+                    cursor += 0.5
+                    break
+                case 513:
+                case 1025:
+                    pixels.push(p8)
+                    cursor++
+                    break
             }
-            break
-        case 513:
-            for (let i = 0; i < pixel_count && cursor < buffer.length; i++) {
-                let pixel = buffer.readUInt8(cursor)
-                pixels.push(pixel)
-                cursor++
-            }
-            break
-        case 1024:
-            for (let i = 0; i < pixel_count && cursor < buffer.length; i++) {
-                let p = buffer.readUInt8(cursor)
-                let pixel_0 = ((p >> 4) & 0xF) * 0x11
-                let pixel_1 = (p & 0xF) * 0x11
-                pixels.push(pixel_0, pixel_1)
-                cursor++
-            }
-            break
-        case 1025:
-            for (let i = 0; i < pixel_count && cursor < buffer.length; i++) {
-                let pixel = null
-                pixel = buffer.readUInt8(cursor)
-                pixels.push(pixel)
-                cursor++
-            }
-            break
+        }
     }
     return pixels
 }
 
-exports.write_pixels = function ({ pixels, format } = {}) {
-    const formatmap = {
-        3: 4,
-        512: 0.5,
-        513: 1,
-        1024: 0.5,
-        1025: 1
-    }
-    let buffer = Buffer.alloc(pixels.length * formatmap[format])
+exports.write_pixels = function ({ pixels, format, width } = {}) {
+
+
+    let padded_width = exports.pageWidthPadding(width, format)
+    let buffer = Buffer.alloc((pixels.length / width) * padded_width * exports.format_map[format])
     let cursor = 0
-    if ([512, 1024].includes(format)) {
-        for (let i = 0; i < pixels.length / 2; i++) {
-            if (format == 512) {
-                buffer.writeUInt8(parseInt((pixels[i * 2]) << 4) | parseInt((pixels[i * 2 + 1])), cursor)
-            } else if (format == 1024) {
-                buffer.writeUInt8((parseInt((pixels[i * 2]) / 0x11) << 4) | (parseInt((pixels[i * 2 + 1]) / 0x11)), cursor)
+    let i = 0
+
+    //for each row in the pixel buffer
+    for (let r = 0; r < pixels.length / width; r++) {
+        cursor = r * padded_width * exports.format_map[format]
+
+        //for each pixel in a row
+        for (let p = 0; p < width; p++) {
+            if(cursor >= buffer.length){
+                console.warn("buffer was shorter than expected")
+                return buffer
             }
-            cursor++
-        }
-    } else if ([513, 1025, 3].includes(format)) {
-        for (let i = 0; i < pixels.length; i++) {
             let pixel = pixels[i]
-            if (format == 3) {
-                for (let j = 0; j < 4; j++) {
-                    buffer.writeUInt8((pixels[i][j]), cursor)
+            switch (format) {
+                case 512:
+                case 1024:
+                    let p8 = buffer.readUInt8(Math.floor(cursor))
+                    if (cursor % 1 == 0) {
+                        p8 = p8 | (pixel << 4)
+                    } else {
+                        p8 = p8 | pixel
+                    }
+                    buffer.writeUInt8(p8, Math.floor(cursor))
+                    cursor += 0.5
+                    break
+                case 513:
+                case 1025:
+                    buffer.writeUInt8(pixel, cursor)
                     cursor++
-                }
-            } else {
-                buffer.writeUInt8(pixel, cursor)
-                cursor++
+                    break
+                case 3:
+                    for (let j = 0; j < 4; j++) {
+                        buffer.writeUInt8((pixel[j]), cursor)
+                        cursor++
+                    }
+                    break
             }
+            i++
         }
     }
+
     return buffer
 }
 
@@ -1710,15 +1726,25 @@ exports.draw_texture = async function ({ pixels, palette, width, height, format,
             let ind = i * width + j
             let p = null
             let color = null
-            if ([512, 513].includes(format)) {
-                p = palette[pixels[ind]]
-                color = Jimp.rgbaToInt(p?.[0] ?? 0, p?.[1] ?? 0, p?.[2] ?? 0, p?.[3] ?? 0)
-            } else if ([1024, 1025].includes(format)) {
-                p = pixels[ind]
-                color = Jimp.rgbaToInt(p ?? 0, p ?? 0, p ?? 0, 255)
-            } else if (format == 3) {
-                p = pixels[ind]
-                color = Jimp.rgbaToInt(p?.[0] ?? 0, p?.[1] ?? 0, p?.[2] ?? 0, p?.[3] ?? 0)
+
+            switch (format) {
+                case 512:
+                case 513:
+                    p = palette[pixels[ind]]
+                    color = Jimp.rgbaToInt(...p)
+                    break
+                case 1024:
+                    p = pixels[ind] * 0x11
+                    color = Jimp.rgbaToInt(p, p, p, 255)
+                    break
+                case 1025:
+                    p = pixels[ind]
+                    color = Jimp.rgbaToInt(p, p, p, 255)
+                    break
+                case 3:
+                    p = pixels[ind]
+                    color = Jimp.rgbaToInt(...p)
+                    break
             }
 
             let x = 0
@@ -1742,22 +1768,18 @@ exports.draw_texture = async function ({ pixels, palette, width, height, format,
     return image
 }
 
-exports.read_texture = async function ({ path, data } = {}) {
+exports.unmake_image = async function ({ path, format, sprite } = {}) {
     return await Jimp.read(path).then(image => {
         let texture = {
             width: image.bitmap.width,
             height: image.bitmap.height,
-            format: data.format,
-            palette_offset: 0,
+            format: format,
             palette: [],
-            pages: 1,
-            page_width: image.bitmap.width,
-            page_height: image.bitmap.height,
-            page_offset: 28,
+            pages: [],
             pixels: []
         }
         // USE TO MAXIMIZE PALETTE SIZE
-        if(false){
+        if (false) {
             if (texture.format == 512) {
                 texture.format = 513
             }
@@ -1766,101 +1788,245 @@ exports.read_texture = async function ({ path, data } = {}) {
             }
         }
 
-        for (i = texture.height - 1; i >= 0; i--) {
-            for (j = 0; j < texture.width; j++) {
-                let color = Object.values(Jimp.intToRGBA(image.getPixelColor(j, i)))
-                switch (texture.format) {
-                    case 512:
-                    case 513:
-                        let pindex = texture.palette.findIndex(p => p[0] == color[0] && p[1] == color[1] && p[2] == color[2] && p[3] == color[3])
-                        if (pindex >= 0) {
-                            texture.pixels.push(pindex)
-                            continue
-                        }
-                        if ((texture.format == 512 && texture.palette.length < 16) || (texture.format == 513 && texture.palette.length < 256)) {
-                            texture.palette.push(color)
-                            texture.pixels.push(texture.palette.length - 1)
-                            continue
-                        }
-                        pindex = 0
-                        console.warn('palette limit exceeded!')
-                        texture.pixels.push(pindex)
-                        break
-                    case 1024:
-                        texture.pixels.push(Math.floor(color[0] / 16) * 16)
-                        break
-                    case 1025:
-                        texture.pixels.push(color[0])
-                        break
-                    case 3:
-                        texture.pixels.push(color)
-                        break
+        //paginate texture
+        let page_widths = []
+        let page_heights = []
+        let page_height = texture.height
+        let page_width = texture.width
+
+        const MAX_PAGE_HEIGT = 32
+        const MAX_PAGE_WIDTH = format == 3 ? 32 : 64
+
+        if (sprite) {
+            while (page_height > 0) {
+                if (page_height >= MAX_PAGE_HEIGT) {
+                    page_heights.push(MAX_PAGE_HEIGT)
+                    page_height -= MAX_PAGE_HEIGT
+                } else {
+                    page_heights.push(page_height)
+                    page_height = 0
                 }
             }
+
+            while (page_width > 0) {
+                if (page_width >= MAX_PAGE_WIDTH) {
+                    page_widths.push(MAX_PAGE_WIDTH)
+                    page_width -= MAX_PAGE_WIDTH
+                } else {
+                    page_widths.push(page_width)
+                    page_width = 0
+                }
+            }
+        } else {
+            page_widths.push(page_width)
+            page_heights.push(page_height)
+        }
+
+        let global_y = 0
+        for (let ph = 0; ph < page_heights.length; ph++) {
+            let pheight = page_heights[ph]
+            let global_x = 0
+            for (let pw = 0; pw < page_widths.length; pw++) {
+                let pwidth = page_widths[pw]
+                let page = {
+                    width: pwidth,
+                    height: pheight,
+                    pixels: []
+                }
+                for (let y = pheight - 1; y >= 0; y--) {
+                    for (let x = 0; x < pwidth; x++) {
+                        let color = Object.values(Jimp.intToRGBA(image.getPixelColor(global_x + x, global_y + y)))
+                        switch (texture.format) {
+                            case 512:
+                            case 513:
+                                let pindex = texture.palette.findIndex(p => p[0] == color[0] && p[1] == color[1] && p[2] == color[2] && p[3] == color[3])
+                                if (pindex >= 0) {
+                                    page.pixels.push(pindex)
+                                    continue
+                                }
+                                if ((texture.format == 512 && texture.palette.length < 16) || (texture.format == 513 && texture.palette.length < 256)) {
+                                    texture.palette.push(color)
+                                    page.pixels.push(texture.palette.length - 1)
+                                    continue
+                                }
+                                pindex = 0
+                                console.warn('palette limit exceeded!')
+                                page.pixels.push(pindex)
+                                break
+                            case 1024:
+                                page.pixels.push(Math.floor(color[0] / 16) * 16)
+                                break
+                            case 1025:
+                                page.pixels.push(color[0])
+                                break
+                            case 3:
+                                page.pixels.push(color)
+                                break
+                        }
+                    }
+                }
+                global_x += pwidth
+                texture.pages.push(page)
+            }
+            global_y += pheight
+        }
+        if (!sprite){
+            texture.pixels = texture.pages[0].pixels
         }
         return texture
     })
 }
 
-exports.read_sprite = async function ({ buffer, index } = {}) {
-    let cursor = 0
+exports.pageWidthPadding = function (width, format) {
+    switch (format) {
+        case 513:
+        case 1025:
+            return (width + 0x7) & 0xFFFFFFF8
+        case 512:
+        case 1024:
+            return (width + 0xF) & 0xFFFFFFF0
+        case 3:
+            return (width + 0x1) & 0xFFFFFFFE
+    }
+}
+
+exports.read_sprite = function ({ buffer, index } = {}) {
     let sprite = {
         index,
-        width: buffer.readInt16BE(cursor),
-        height: buffer.readInt16BE(cursor + 2),
-        format: buffer.readInt16BE(cursor + 4),
-        palette_offset: buffer.readInt32BE(cursor + 8),
-        page_count: buffer.readInt16BE(cursor + 12),
-        unk_0: buffer.readInt16BE(cursor + 14),
-        unk_1: buffer.readInt32BE(cursor + 16),
+        width: buffer.readInt16BE(0),
+        height: buffer.readInt16BE(2),
+        format: buffer.readInt16BE(4),
+        palette_offset: buffer.readInt32BE(8),
+        page_count: buffer.readInt16BE(12),
+        unk_0: buffer.readInt16BE(14), //always 32
+        unk_1: buffer.readInt32BE(16), //always 40
         pages: [],
     }
-    if (index == 173) {
-        sprite.width = 192
-    }
+
+    //get palette
+    sprite.palette = exports.read_palette({ buffer: buffer.subarray(sprite.palette_offset, buffer.length), format: sprite.format })
+
     //get pages
-    for (i = 0; i < sprite.page_count; i++) {
+    for (let i = 0; i < sprite.page_count; i++) {
         let page_start = 20 + i * 8
         let page = {
             width: buffer.readInt16BE(page_start),
             height: buffer.readInt16BE(page_start + 2),
             offset: buffer.readInt32BE(page_start + 4)//offset to start of pixel data for page
         }
-
-        //with some odd sprite widths, page widths need to be corrected to line up pixels
-        if ([513, 1025].includes(sprite.format)) {
-            page.width = (page.width + 0x7) & 0xFFFFFFF8
-        } else if ([512, 1024].includes(sprite.format)) {
-            page.width = (page.width + 0xF) & 0xFFFFFFF0
-        }
         sprite.pages.push(page)
     }
-    //get palette
-    sprite.palette = exports.read_palette({ buffer: buffer.subarray(sprite.palette_offset, buffer.length), format: sprite.format })
 
+    //get page pixels
+    for (let i = 0; i < sprite.pages.length; i++) {
+        let page = sprite.pages[i]
+        page.pixels = exports.read_pixels(
+            {
+                buffer: buffer.subarray(
+                    page.offset,
+                    (i == (sprite.pages.length - 1)) ? buffer.length : sprite.pages[i + 1].offset
+                ),
+                format: sprite.format,
+                width: page.width
+            })
+    }
+
+    /*
+        Page pixel buffers may contain more pixels than their width x height suggests
+        For example: sprite 26 (format 1024) is an 8x8 square with a single 8x8 page, but it contains 64 bytes (128) pixels
+
+        This is because a page's pixel buffer is read in 8-byte chunks.
+        If a page is the last in its row, its width won't always align with this chunk size.
+        Therefore, it needs to pad each of its pixel rows to match this chunk size.
+
+        format 512 and 1024 sprites' page widths must be 0 mod 16 [8 bytes]
+        format 513 and 1025 sprites' page widths must be 0 mod 8 [8 bytes]
+        format 3 sprites' page widths must be 0 mod 2 [8 bytes]
+
+        the width of a sprite may be split into pages of various widths (64, 32)
+        page width is max 64, except for format 3 which has max 32
+        page height is max 32
+    */
+
+    return sprite
+}
+
+exports.draw_sprite = async function (sprite) {
     const sprite_image = new Jimp(sprite.width, sprite.height);
     let sprite_pages = []
     //get pixels from pages and assemble image
     for (let k = 0; k < sprite.page_count; k++) {
         let page = sprite.pages[k]
-        let pixels = exports.read_pixels({ buffer: buffer.subarray(page.offset, buffer.length), format: sprite.format, pixel_count: page.width * page.height })
-
-        const page_image = await exports.draw_texture({ pixels, palette: sprite.palette, width: page.width, height: page.height, format: sprite.format, path: `sprites/${index}_${k}.png` })
+        const page_image = await exports.draw_texture({ pixels: page.pixels, palette: sprite.palette, width: page.width, height: page.height, format: sprite.format }) //, path: `sprites/${sprite.index}_${k}.png`
         sprite_pages.push(page_image)
     }
+
     let x = 0, y = 0
     for (let i = 0; i < sprite_pages.length; i++) {
+        if (x + sprite_pages[i].bitmap.width > sprite.width) { //if the page won't fit, go to next row
+            x = 0
+            y += sprite_pages[i - 1].bitmap.height
+        }
         sprite_image.blit(sprite_pages[i], x, y)
         x += sprite_pages[i].bitmap.width
-        if (x >= sprite.width) {
-            x = 0
-            y += sprite_pages[i].bitmap.height
-        }
+
     }
 
-    sprite_image.write(`sprites/${index}.png`)
+    sprite_image.write(`sprites/${sprite.index}.png`)
+}
 
-    return sprite
+exports.write_sprite = function (sprite) {
+    let header_buffer = Buffer.alloc(20 + sprite.pages.length * 8)
+    let cursor = 0
+    let buffer = []
+
+    //write header
+    header_buffer.writeUInt16BE(sprite.width, cursor)
+    cursor += 2
+    header_buffer.writeUInt16BE(sprite.height, cursor)
+    cursor += 2
+    header_buffer.writeUInt16BE(sprite.format, cursor)
+    cursor += 4
+    sprite.palette_offset = cursor
+    cursor += 4
+    header_buffer.writeUInt16BE(sprite.pages.length, cursor)
+    cursor += 2
+    header_buffer.writeUInt16BE(32, cursor)
+    cursor += 2
+    header_buffer.writeUInt32BE(20, cursor)
+    cursor += 4
+
+    //write page info
+    for (let p = 0; p < sprite.pages.length; p++) {
+        let page = sprite.pages[p]
+        header_buffer.writeUInt16BE(page.width, cursor)
+        cursor += 2
+        header_buffer.writeUInt16BE(page.height, cursor)
+        cursor += 2
+        sprite.pages[p].offset = cursor
+        cursor += 4
+    }
+
+    buffer.push(header_buffer)
+
+    //write palette
+    if ([512, 513].includes(sprite.format)) {
+        header_buffer.writeUInt32BE(cursor, sprite.palette_offset) //write palette offset
+        let palette_buffer = exports.write_palette({ palette: sprite.palette })
+        cursor += palette_buffer.length
+        buffer.push(palette_buffer)
+    }
+
+    //write pixels
+    for (let p = 0; p < sprite.pages.length; p++) {
+        let page = sprite.pages[p]
+        header_buffer.writeUInt32BE(cursor, page.offset) // write page offset
+        let pixel_buffer = exports.write_pixels({ pixels: page.pixels, format: sprite.format, width: page.width })
+        cursor += pixel_buffer.length
+        buffer.push(pixel_buffer)
+    }
+
+    return Buffer.concat(buffer)
 }
 
 
