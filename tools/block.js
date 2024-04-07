@@ -203,7 +203,7 @@ exports.write_mat = function ({ buffer, cursor, mat_id, hl, model } = {}) {
     model.mats[mat_id].write = mat_addr
     exports.map_ref({ cursor, id: mat_id, model })
     let mat = model.mats[mat_id]
-    cursor = buffer.writeInt32BE(mat.format, cursor)
+    cursor = buffer.writeInt32BE(14, cursor) // mat.format
     //0000001   1   254 1 = lightmap
     //0000010   2   253 no apparent changes
     //0000100   4   251 
@@ -304,35 +304,37 @@ exports.write_mat_texture = function ({ buffer, cursor, tex_id, hl, model } = {}
         texture.height = texture.height * 4
     }
 
-    cursor = buffer.writeInt32BE(texture.unk0, cursor)             //0, 1, 65, 73
+    cursor = buffer.writeInt32BE(0, cursor)             //0, 1, 65, 73 texture.unk0
     cursor = buffer.writeUInt16BE(texture.width * 4, cursor)       //width * 4 //texture.unk1
     cursor = buffer.writeUInt16BE(texture.height * 4, cursor)       //height * 4 //texture.unk2,
-    cursor = buffer.writeInt32BE(texture.unk3, cursor)         //always 0
+    cursor = buffer.writeInt32BE(0, cursor)         //always 0 texture.unk3
     cursor = buffer.writeInt16BE(texture.format, cursor)     //3, 512, 513, 1024
-    cursor = buffer.writeInt16BE(texture.unk4, cursor)       //0, 4
+    cursor = buffer.writeInt16BE(0, cursor)       //0, 4 texture.unk4
     cursor = buffer.writeInt16BE(texture.width, cursor)      //pixel width
     cursor = buffer.writeInt16BE(texture.height, cursor)    //pixel height
-    cursor = buffer.writeInt16BE(texture.unk5, cursor)      //width * 512 (unsigned)
-    cursor = buffer.writeInt16BE(texture.unk6, cursor)      //height * 512 (unsigned)
-    cursor = buffer.writeInt16BE(texture.unk7, cursor)       //0 when unk4 is 4, 
-    cursor = buffer.writeInt16BE(texture.unk8, cursor)
+    cursor = buffer.writeUInt16BE(Math.min(texture.width * 512, 65535), cursor)      //width * 512 (unsigned)
+    cursor = buffer.writeUInt16BE(Math.min(texture.height * 512, 65535), cursor)      //height * 512 (unsigned)
+    cursor = buffer.writeInt16BE(0, cursor)       //0 when unk4 is 4,  
+    cursor = buffer.writeInt16BE(0, cursor) //texture.unk8
 
     let unk_pointer = cursor
     cursor += 28
     exports.highlight({ cursor, hl })
-    cursor = buffer.writeInt16BE(texture.unk9, cursor)      //2560, 2815 is used when cursor index is blank
+    cursor = buffer.writeInt16BE(2560, cursor)      //2560, 2815 is used when cursor index is blank texture.unk9
     cursor = buffer.writeInt16BE(texture.tex_index, cursor)
     cursor += 4
-    for (let i = 0; i < texture.unk_pointers.length; i++) {
+
+
+    for (let i = 0; i < 1; i++) {
 
         let pointer = texture.unk_pointers[i]
         exports.highlight({ cursor: unk_pointer + i * 4, hl })
         buffer.writeUInt32BE(cursor, unk_pointer + i * 4)
-        cursor = buffer.writeInt32BE(pointer.unk0, cursor)
-        cursor = buffer.writeInt32BE(pointer.unk1, cursor)
-        cursor = buffer.writeInt32BE(pointer.unk2, cursor)
-        cursor = buffer.writeInt16BE(pointer.unk3, cursor)
-        cursor = buffer.writeInt16BE(pointer.unk4, cursor)
+        cursor = buffer.writeInt32BE(0, cursor) //pointer.unk0
+        cursor = buffer.writeInt32BE(0, cursor) //pointer.unk1
+        cursor = buffer.writeInt32BE(0, cursor) //pointer.unk2
+        cursor = buffer.writeInt16BE(0, cursor) //pointer.unk3
+        cursor = buffer.writeInt16BE(0, cursor) //pointer.unk4
     }
 
     return cursor
@@ -374,35 +376,36 @@ exports.read_mat_unk = function ({ buffer, cursor } = {}) {
     }
 }
 
+//this whole struct can be 0
 exports.write_mat_unk = function ({ buffer, cursor, unk } = {}) {
-    cursor = buffer.writeInt16BE(unk.unk0, cursor) //always 0
-    cursor = buffer.writeInt16BE(unk.unk1, cursor) //0, 1, 8, 9   
-    cursor = buffer.writeInt16BE(unk.unk2, cursor) //1, 2
-    cursor = buffer.writeInt16BE(unk.unk3, cursor) //287, 513, 799, 1055, 1537, 7967
-    cursor = buffer.writeInt16BE(unk.unk4, cursor) //287, 799, 1055, 3329, 7939, 7940
-    cursor = buffer.writeInt16BE(unk.unk5, cursor) //263, 513, 775, 1031, 1537, 1795, 1799
-    cursor = buffer.writeInt16BE(unk.unk6, cursor) //1, 259, 263, 775, 1031, 1793, 1795, 1796, 1798, 
-    cursor = buffer.writeInt16BE(unk.unk7, cursor) //31, 287, 799, 1055, 7967
-    cursor = buffer.writeInt16BE(unk.unk8, cursor) //31, 799, 1055, 7936, 7940
-    cursor = buffer.writeInt16BE(unk.unk9, cursor) //7, 1799
-    cursor = buffer.writeInt16BE(unk.unk10, cursor) //775, 1031, 1792, 1796, 1798
-    cursor = buffer.writeInt16BE(unk.unk11, cursor) //always 0
-    cursor = buffer.writeInt16BE(unk.unk12, cursor) //-14336, 68, 3080
-    cursor = buffer.writeInt16BE(unk.unk13, cursor) //0, 1, 8200, 8312
-    cursor = buffer.writeInt16BE(unk.unk14, cursor) //16, 17, 770
-    cursor = buffer.writeInt16BE(unk.unk15, cursor) //120, 8200, 8248, 8296, 8312, 16840, 16856, 16960, 17216, 18760, 18768, 18808, 18809, 18888, 18904, 18936, 19280, 20048
-    cursor = buffer.writeInt16BE(unk.unk16, cursor) //probably 0?
-    cursor = buffer.writeUInt8(unk.r, cursor)
-    cursor = buffer.writeUInt8(unk.g, cursor)
-    cursor = buffer.writeUInt8(unk.b, cursor)
-    cursor = buffer.writeUInt8(unk.t, cursor)
-    cursor = buffer.writeInt16BE(unk.unk17, cursor)
-    cursor = buffer.writeInt16BE(unk.unk18, cursor)
-    cursor = buffer.writeInt16BE(unk.unk19, cursor)
-    cursor = buffer.writeInt16BE(unk.unk20, cursor)
-    cursor = buffer.writeInt16BE(unk.unk21, cursor)
-    cursor = buffer.writeInt16BE(unk.unk22, cursor)
-    cursor = buffer.writeInt16BE(unk.unk23, cursor)
+    cursor = buffer.writeInt16BE(0, cursor) //always 0 unk.unk0
+    cursor = buffer.writeInt16BE(0, cursor) //0, 1, 8, 9 unk.unk1
+    cursor = buffer.writeInt16BE(0, cursor) //1, 2 unk.unk2
+    cursor = buffer.writeInt16BE(0, cursor) //287, 513, 799, 1055, 1537, 7967 unk.unk3
+    cursor = buffer.writeInt16BE(0, cursor) //287, 799, 1055, 3329, 7939, 7940 unk.unk4 color?
+    cursor = buffer.writeInt16BE(0, cursor) //263, 513, 775, 1031, 1537, 1795, 1799 unk.unk5
+    cursor = buffer.writeInt16BE(0, cursor) //1, 259, 263, 775, 1031, 1793, 1795, 1796, 1798,  unk.unk6 tint black for shadows/effects?
+    cursor = buffer.writeInt16BE(0, cursor) //31, 287, 799, 1055, 7967 unk.unk7
+    cursor = buffer.writeInt16BE(0, cursor) //31, 799, 1055, 7936, 7940 unk.unk8
+    cursor = buffer.writeInt16BE(0, cursor) //7, 1799 unk.unk9
+    cursor = buffer.writeInt16BE(0, cursor) //775, 1031, 1792, 1796, 1798 unk.unk10
+    cursor = buffer.writeInt16BE(0, cursor) //always 0 unk.unk11
+    cursor = buffer.writeInt16BE(0, cursor) //-14336, 68, 3080 unk.unk12
+    cursor = buffer.writeInt16BE(0, cursor) //0, 1, 8200, 8312 unk.unk13
+    cursor = buffer.writeInt16BE(0, cursor) //16, 17, 770 unk.unk14
+    cursor = buffer.writeInt16BE(0, cursor) //120, 8200, 8248, 8296, 8312, 16840, 16856, 16960, 17216, 18760, 18768, 18808, 18809, 18888, 18904, 18936, 19280, 20048 unk.unk15
+    cursor = buffer.writeInt16BE(0, cursor) //probably 0? unk.unk16
+    cursor = buffer.writeUInt8(0, cursor) //unk.r
+    cursor = buffer.writeUInt8(0, cursor) //unk.g
+    cursor = buffer.writeUInt8(0, cursor) //unk.b
+    cursor = buffer.writeUInt8(0, cursor) //unk.t
+    cursor = buffer.writeInt16BE(0, cursor) //unk.unk17
+    cursor = buffer.writeInt16BE(0, cursor) //unk.unk18
+    cursor = buffer.writeInt16BE(0, cursor) //unk.unk19
+    cursor = buffer.writeInt16BE(0, cursor) //unk.unk20
+    cursor = buffer.writeInt16BE(0, cursor) //unk.unk21
+    cursor = buffer.writeInt16BE(0, cursor) //unk.unk22
+    cursor = buffer.writeInt16BE(0, cursor) //unk.unk23
 
     return cursor
 }
@@ -805,10 +808,12 @@ exports.read_visual_index_buffer = function ({ buffer, cursor, vert_buffer_start
     return index_buffer
 }
 
-exports.write_visual_index_buffer = function ({ buffer, cursor, index_buffer, hl } = {}) {
+exports.write_visual_index_buffer = function ({ buffer, cursor, index_buffer, hl, model } = {}) {
     if (!index_buffer || !index_buffer.length) {
         return cursor
     }
+
+
     let v = 0
     for (let i = 0; i < index_buffer.length; i++) {
         let index = index_buffer[i]
@@ -816,13 +821,11 @@ exports.write_visual_index_buffer = function ({ buffer, cursor, index_buffer, hl
         buffer.writeUInt8(type, cursor + v)
         switch (type) {
             case 1:
-                buffer.writeUInt8(index.unk1, cursor + v + 1)
-                buffer.writeUInt8(index.unk2, cursor + v + 2)
                 buffer.writeUInt8(index.size, cursor + v + 3)
                 exports.highlight({ cursor: cursor + v + 4, hl })
-                //buffer.writeUInt32BE(index.start, cursor + v + 4)
                 break
             case 3:
+                continue
                 buffer.writeUInt8(index.unk, cursor + v + 7)
                 break
             case 5:
@@ -913,6 +916,7 @@ exports.write_visual_vert_buffer = function ({ buffer, cursor, vert_buffer, inde
 
 exports.read_mesh_group = function ({ buffer, cursor, model } = {}) {
     let mesh = {
+        id: cursor,
         collision: {
             data: exports.read_collision_data({ buffer, cursor: buffer.readUInt32BE(cursor + 4) }),
             vert_strips: exports.read_collision_vert_strips({ buffer, cursor: buffer.readUInt32BE(cursor + 36), count: buffer.readInt16BE(cursor + 32), def: buffer.readInt16BE(cursor + 34) }),
@@ -940,32 +944,55 @@ exports.read_mesh_group = function ({ buffer, cursor, model } = {}) {
 
 exports.write_mesh_group = function ({ buffer, cursor, mesh, hl, model } = {}) {
     let headstart = cursor
-    buffer.writeFloatBE(mesh.min_x, cursor + 8)
-    buffer.writeFloatBE(mesh.min_y, cursor + 12)
-    buffer.writeFloatBE(mesh.min_z, cursor + 16)
-    buffer.writeFloatBE(mesh.max_x, cursor + 20)
-    buffer.writeFloatBE(mesh.max_y, cursor + 24)
-    buffer.writeFloatBE(mesh.max_z, cursor + 28)
+    let print = false
+    if (print) {
+        console.log(mesh.id)
+    }
+    if (model.id == 115) {
+        if([null, undefined, 0].includes(mesh.visuals?.vert_buffer?.length)){
+            mesh.visuals.material = 0
+        }
+        console.log(mesh.id, cursor)
+        mesh.collision.data = 0
+    }
+    buffer.writeFloatBE(Math.round(mesh.min_x), cursor + 8)
+    buffer.writeFloatBE(Math.round(mesh.min_y), cursor + 12)
+    buffer.writeFloatBE(Math.round(mesh.min_z), cursor + 16)
+    buffer.writeFloatBE(Math.round(mesh.max_x), cursor + 20)
+    buffer.writeFloatBE(Math.round(mesh.max_y), cursor + 24)
+    buffer.writeFloatBE(Math.round(mesh.max_z), cursor + 28)
     buffer.writeInt16BE(mesh.vert_strip_count, cursor + 32)
     buffer.writeInt16BE(mesh.vert_strip_default, cursor + 34)
     exports.highlight({ cursor: cursor + 40, hl })
-    exports.outside_ref({ cursor: cursor + 40, ref: mesh.visuals.group_parent, model })
-    buffer.writeInt16BE(mesh.collision.vert_buffer.length, cursor + 56)
-    buffer.writeInt16BE(mesh.visuals.vert_buffer.length, cursor + 58)
-    buffer.writeInt16BE(mesh.visuals.group_count, cursor + 62)
+    exports.outside_ref({ cursor: cursor + 40, ref: mesh.visuals?.group_parent, model })
+    buffer.writeInt16BE(mesh.collision?.vert_buffer?.length, cursor + 56)
+    if (print) {
+        console.log('col vert buffer length', mesh.collision?.vert_buffer?.length, 'vis vert buffer length', mesh.visuals.vert_buffer?.length)
+    }
+    buffer.writeInt16BE(mesh.visuals?.vert_buffer?.length, cursor + 58)
+    buffer.writeInt16BE(mesh.visuals?.group_count, cursor + 62)
     cursor += 64
 
-    if (mesh.collision.vert_strips) {
+    if (mesh.collision?.vert_strips && mesh.collision?.vert_buffer) {
+        if (print) {
+            console.log('mesh col vert strips')
+        }
         exports.highlight({ cursor: headstart + 36, hl })
         buffer.writeUInt32BE(cursor, headstart + 36)
         cursor = exports.write_collision_vert_strips({ buffer, cursor, vert_strips: mesh.collision.vert_strips })
     }
-    if (mesh.collision.vert_buffer) {
+    if (mesh.collision?.vert_buffer) {
+        if (print) {
+            console.log('mesh col vert buffer')
+        }
         exports.highlight({ cursor: headstart + 44, hl })
         buffer.writeUInt32BE(cursor, headstart + 44)
         cursor = exports.write_collision_vert_buffer({ buffer, cursor, vert_buffer: mesh.collision.vert_buffer })
     }
-    if (mesh.visuals.material) {
+    if (mesh.visuals?.material) {
+        if (print) {
+            console.log('material')
+        }
         exports.highlight({ cursor: headstart + 0, hl })
         let mat_id = mesh.visuals.material
         if (model.mats[mat_id].write) {
@@ -976,18 +1003,104 @@ exports.write_mesh_group = function ({ buffer, cursor, mesh, hl, model } = {}) {
         }
     }
     let index_buffer_addr = null
-    if (mesh.visuals.index_buffer) {
+    if (mesh.visuals?.index_buffer) {
+        if (print) {
+            console.log('visuals index buffer')
+        }
+        let index_buffer = mesh.visuals.index_buffer
+
+        if (model.id == 115) {
+            const MAX_INDECES = 32
+            //normalize indices, remove 3chunks and 1 chunks
+            let start = 0
+            for (let i = 0; i < index_buffer.length; i++) {
+                let chunk = index_buffer[i]
+                if (chunk.type == 1) {
+                    start = chunk.start * 2
+                } else if (chunk.type == 5) {
+                    chunk.x = chunk.x + start
+                    chunk.y = chunk.y + start
+                    chunk.z = chunk.z + start
+                } else if (chunk.type == 6) {
+                    chunk.x1 = chunk.x1 + start
+                    chunk.y1 = chunk.y1 + start
+                    chunk.z1 = chunk.z1 + start
+                    chunk.x2 = chunk.x2 + start
+                    chunk.y2 = chunk.y2 + start
+                    chunk.z2 = chunk.z2 + start
+                }
+            }
+            index_buffer = index_buffer.filter(chunk => [5, 6].includes(chunk.type))
+    
+            //insert chunk1s and fix indices
+            let offset = 0
+            let new_buffer = [
+                {
+                    type: 1,
+                    start: 0
+                }
+            ]
+            for (let i = 0; i < index_buffer.length; i++) {
+                let chunk = index_buffer[i]
+                let min = Math.min(...[chunk.x, chunk.y, chunk.z, chunk.x1, chunk.x2, chunk.y1, chunk.y2, chunk.z1, chunk.z2].filter(a => a != undefined))
+                if (min/2 - offset/2 > MAX_INDECES) {
+                    offset = min
+                    new_buffer.push(
+                        {
+                            type: 1,
+                            start: offset / 2
+                        }
+                    )
+                }
+                if (chunk.type == 5) {
+                    chunk.x -= offset
+                    chunk.y -= offset
+                    chunk.z -= offset
+                } else if (chunk.type == 6) {
+                    chunk.x1 -= offset
+                    chunk.y1 -= offset
+                    chunk.z1 -= offset
+                    chunk.x2 -= offset
+                    chunk.y2 -= offset
+                    chunk.z2 -= offset
+                }
+                new_buffer.push(chunk)
+            }
+    
+            //reverse crawl and find max index
+            let mi = 0
+            for (let i = new_buffer.length - 1; i > -1; i--) {
+                let chunk = new_buffer[i]
+                if (chunk.type == 1) {
+                    chunk.size = mi + 2
+                    mi = 0
+                    continue
+                }
+                let cmi = Math.max(...[chunk.x, chunk.y, chunk.z, chunk.x1, chunk.x2, chunk.y1, chunk.y2, chunk.z1, chunk.z2].filter(a => a != undefined))
+                if (cmi > mi) {
+                    mi = cmi
+                }
+            }
+            mesh.visuals.index_buffer = new_buffer
+        }
+
         exports.highlight({ cursor: headstart + 48, hl })
         index_buffer_addr = cursor % 8 == 0 ? cursor : cursor + 4 //this section must be byte-aligned
         buffer.writeInt32BE(index_buffer_addr, headstart + 48)
-        cursor = exports.write_visual_index_buffer({ buffer, cursor: index_buffer_addr, index_buffer: mesh.visuals.index_buffer, hl })
+        cursor = exports.write_visual_index_buffer({ buffer, cursor: index_buffer_addr, index_buffer: mesh.visuals.index_buffer, hl, model })
     }
-    if (mesh.visuals.vert_buffer?.length) {
+    if (mesh.visuals?.vert_buffer?.length) {
+        if (print) {
+            console.log('visuals vert buffer')
+        }
         exports.highlight({ cursor: headstart + 52, hl })
         buffer.writeUInt32BE(cursor, headstart + 52)
         cursor = exports.write_visual_vert_buffer({ buffer, cursor, vert_buffer: mesh.visuals.vert_buffer, index_buffer: mesh.visuals.index_buffer, index_buffer_addr })
     }
-    if (mesh.collision.data) {
+    if (mesh.collision?.data) {
+        if (print) {
+            console.log('mesh col data')
+        }
         exports.highlight({ cursor: headstart + 4, hl })
         buffer.writeUInt32BE(cursor, headstart + 4)
         cursor = exports.write_collision_data({ buffer, cursor, data: mesh.collision.data, hl, model })
@@ -1146,8 +1259,110 @@ exports.read_node = function ({ buffer, cursor, model } = {}) {
     return node
 }
 
-exports.write_node = function ({ buffer, cursor, node, hl, model, header_offsets } = {}) {
+let flags = []
 
+exports.write_node = function ({ buffer, cursor, node, hl, model, header_offsets } = {}) {
+    node.children = node?.children?.filter(c => c.id !== null)
+    //split collision and visuals to mimic blender add-on
+
+    if (model.id == 115) {
+        if (node.id == 116) {
+            node.children.splice(7, 1)
+        }
+    }
+    if (model.id == 115) {
+        console.log(node.id, node.head[0])
+    }
+
+
+
+
+    // if (model.id == 115 && node.children?.map(child => child?.head?.[0]).includes(12388)) {
+    //     let children = []
+    //     for (let n = 0; n < node.children.length; n++) {
+    //         let mesh_group = node.children[n]
+
+    //         if(!mesh_group.head){
+    //             children.push(mesh_group)
+    //             continue
+    //         }
+
+
+    //         let vis = node.head[1] & 4
+    //         let col = node.head[2] & 2
+
+    //         //detect if we need to segregate
+    //         if (vis && col) {
+    //             let col_children = []
+    //             let vis_children = []
+    //             for (let c = 0; c < mesh_group.children.length; c++) {
+    //                 let child = mesh_group.children[c]
+    //                 let vis_child = JSON.parse(JSON.stringify(child))
+    //                 let col_child = JSON.parse(JSON.stringify(child))
+
+    //                 if (child.collision?.vert_buffer) {
+    //                     delete col_child.visuals.vert_buffer
+    //                     delete col_child.visuals.index_buffer
+    //                     col_child.visuals.group_parent = 0
+    //                     col_child.visuals.group_count = 0
+    //                     col_child.visuals.material = 0
+    //                 }
+    //                 if (child.visuals?.vert_buffer) {
+    //                     vis_child.collision.data = 0
+    //                     delete vis_child.collision.vert_buffer
+    //                     delete vis_child.collision.vert_strips
+    //                 }
+    //                 col_children.push(col_child)
+    //                 vis_children.push(vis_child)
+    //             }
+
+    //             let col_group = JSON.parse(JSON.stringify(mesh_group))
+    //             let vis_group = JSON.parse(JSON.stringify(mesh_group))
+    //             col_group.children = col_children
+    //             vis_group.children = vis_children
+    //             col_group.head[1] = (col_group.head[1] & 4294967291) >>> 0
+    //             vis_group.head[2] = (vis_group.head[2] & 4294967289) >>> 0
+    //             col_group.id = col_group.id + "col"
+    //             vis_group.id = vis_group.id + "vis"
+    //             children.push(col_group, vis_group)
+
+    //         } else {
+    //             children.push(mesh_group)
+    //         }
+    //     }
+    //     node.children = children
+    // }
+
+    // if (node.head[0] == 12388 && model.id == 115 && node.id == 976) {
+    //     let children = []
+    //     //node.head[1] = node.head[1] & 4294967291
+    //     node.head[2] = node.head[2] & 4294967289
+    //     let col = node.children.map(c => c.collision?.vert_buffer?.length).filter(c => c > 0).length
+    //     let vis = node.children.map(c => c.visuals?.vert_buffer?.length).filter(c => c > 0).length
+    //     flags.push({ model_id: model.id, node_id: node.id, vis_flag: node.head[1].toString(2), col_flag: node.head[2].toString(2), vis_child: vis, col_child: col })
+
+    //     for (let c = 0; c < node.children.length; c++) {
+    //         let child = node.children[c]
+    //         let vis_child = JSON.parse(JSON.stringify(child))
+    //         let col_child = JSON.parse(JSON.stringify(child))
+
+    //         if (child.collision?.vert_buffer) {
+    //             delete col_child.visuals.vert_buffer
+    //             delete col_child.visuals.index_buffer
+    //             col_child.visuals.group_parent = 0
+    //             col_child.visuals.group_count = 0
+    //             children.push(col_child)
+    //         }
+    //         if (child.visuals?.vert_buffer) {
+    //             vis_child.collision.data = 0
+    //             delete vis_child.collision.vert_buffer
+    //             delete vis_child.collision.vert_strips
+    //             children.push(vis_child)
+    //         }
+
+    //     }
+    //     node.children = children
+    // }
     if (node.header) {
         for (let i = 0; i < node.header.length; i++) {
             buffer.writeUInt32BE(cursor, 4 + node.header[i] * 4)
@@ -1163,8 +1378,8 @@ exports.write_node = function ({ buffer, cursor, node, hl, model, header_offsets
     exports.map_ref({ cursor, id: node.id, model })
 
     cursor = buffer.writeUInt32BE(node.head[0], cursor)
-    cursor = buffer.writeUInt32BE(node.head[1], cursor)
-    cursor = buffer.writeUInt32BE(node.head[2], cursor)
+    cursor = buffer.writeUInt32BE(node.head[1], cursor) //
+    cursor = buffer.writeUInt32BE(node.head[2], cursor) //
     cursor = buffer.writeUInt32BE(node.head[3], cursor)
     cursor = buffer.writeUInt32BE(node.head[4], cursor)
     cursor = buffer.writeUInt32BE(node.children.length, cursor)
@@ -1176,12 +1391,12 @@ exports.write_node = function ({ buffer, cursor, node, hl, model, header_offsets
     switch (node.head[0]) {
         case 12388:
             mesh_group = true
-            cursor = buffer.writeFloatBE(node.min_x, cursor)
-            cursor = buffer.writeFloatBE(node.min_y, cursor)
-            cursor = buffer.writeFloatBE(node.min_z, cursor)
-            cursor = buffer.writeFloatBE(node.max_x, cursor)
-            cursor = buffer.writeFloatBE(node.max_y, cursor)
-            cursor = buffer.writeFloatBE(node.max_z, cursor)
+            cursor = buffer.writeFloatBE(Math.round(node.min_x), cursor)
+            cursor = buffer.writeFloatBE(Math.round(node.min_y), cursor)
+            cursor = buffer.writeFloatBE(Math.round(node.min_z), cursor)
+            cursor = buffer.writeFloatBE(Math.round(node.max_x), cursor)
+            cursor = buffer.writeFloatBE(Math.round(node.max_y), cursor)
+            cursor = buffer.writeFloatBE(Math.round(node.max_z), cursor)
             cursor += 8
             break
         case 20581:
@@ -1255,6 +1470,9 @@ exports.write_node = function ({ buffer, cursor, node, hl, model, header_offsets
         cursor += 4
     }
 
+
+
+
     //write children
     for (let c = 0; c < node.children.length; c++) {
 
@@ -1288,7 +1506,6 @@ exports.write_node = function ({ buffer, cursor, node, hl, model, header_offsets
 }
 
 exports.read_model = function ({ buffer, index } = {}) {
-    console.log('reading model', index)
     let model = {
         mats: {}, //unique mats
         textures: {}, //unique textures
@@ -1313,6 +1530,10 @@ exports.write_model = function ({ model } = {}) {
     let buffer = Buffer.alloc(8000000)
     let hl = Buffer.alloc(1000000)
     let cursor = 0
+
+    if (model.ext == 'Trak') {
+        delete model.Anim
+    }
 
     model.ref_map = {} //where we'll map node ids to their written locations
     model.ref_keeper = {} //where we'll remember locations of node offsets to go back and update with the offset_map at the end
@@ -1623,10 +1844,10 @@ exports.read_pixels = function ({ buffer, format, width } = {}) {
     for (let r = 0; r < buffer.length; r += padded_width * exports.format_map[format]) {
         let cursor = r
 
-        
+
         //for each pixel in a row
         for (let p = 0; p < width; p++) {
-            if(cursor >= buffer.length){
+            if (cursor >= buffer.length) {
                 console.warn("buffer was shorter than expected")
                 return pixels
             }
@@ -1674,7 +1895,7 @@ exports.write_pixels = function ({ pixels, format, width } = {}) {
 
         //for each pixel in a row
         for (let p = 0; p < width; p++) {
-            if(cursor >= buffer.length){
+            if (cursor >= buffer.length) {
                 console.warn("buffer was shorter than expected")
                 return buffer
             }
@@ -1870,7 +2091,7 @@ exports.unmake_image = async function ({ path, format, sprite } = {}) {
             }
             global_y += pheight
         }
-        if (!sprite){
+        if (!sprite) {
             texture.pixels = texture.pages[0].pixels
         }
         return texture
@@ -2028,5 +2249,12 @@ exports.write_sprite = function (sprite) {
 
     return Buffer.concat(buffer)
 }
+
+exports.write_flags = function () {
+    fs.writeFile(("flags.json"), JSON.stringify(flags), (err) => {
+        if (err) console.error(err)
+    })
+}
+
 
 

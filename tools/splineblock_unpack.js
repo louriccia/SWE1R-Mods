@@ -23,5 +23,3 @@ for (let i = 0; i < spline_buffers.length; i++) {
 }
 
 console.log(`Successfully unpacked ${spline_buffers.length} splines to splines/`)
-
-
