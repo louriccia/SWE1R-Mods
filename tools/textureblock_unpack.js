@@ -1,5 +1,5 @@
 const fs = require('fs');
-const filePath = './in/out_textureblock.bin'
+const filePath = 'C:/Program Files (x86)/Steam/steamapps/common/Star Wars Episode I Racer/data/lev01/out_textureblock.bin'
 
 if (!fs.existsSync(filePath)) {
   console.log(`File not found: ${filePath}\nPlease provide the out_textureblock.bin file from your game's data/lev01/ folder in the ./in folder`)
@@ -19,8 +19,8 @@ if (!fs.existsSync('./textures/')) {
 for (let i = 0; i < pixel_buffers.length; i++) {
   let texture = {
     ...textures[i],
-    pixels: read_pixels({ buffer: pixel_buffers[i], format: textures[i].format, width: textures[i].width}),
-    palette: read_palette({ buffer: palette_buffers[i], format: textures[i].format }),
+    pixels: read_pixels({ buffer: pixel_buffers[i], format: textures[i]?.format, width: textures[i]?.width}),
+    palette: read_palette({ buffer: palette_buffers[i], format: textures[i]?.format }),
     index: i
   }
 

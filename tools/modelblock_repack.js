@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { write_model, write_block, write_flags } = require('./block');
+const { write_model, write_block, write_bb, write_triggers } = require('./block');
 let splineblock = {}
 
 if (fs.existsSync('../splineblock/out_splineblock.json')) {
@@ -52,10 +52,12 @@ Promise.all(replacements).then(models => {
         fs.writeFileSync(`out/model_${i}.bin`, model);
         fs.writeFileSync(`out/offset_${i}.bin`, offset);
     }
-    
+
     let file = write_block({ arr: [offset_buffers, model_buffers] })
     fs.writeFileSync('C:/Program Files (x86)/Steam/steamapps/common/Star Wars Episode I Racer/data/lev01/out_modelblock.bin', file);
     console.log(`successfully repacked ${models.length} models to out/modelblock.bin`)
-    write_flags()
+    write_bb()
+    write_triggers()
+
 })
 

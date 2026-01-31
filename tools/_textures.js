@@ -1471,7 +1471,7 @@ exports.textures = {
     },
     "294": {
         "format": 512,
-        "width": 80,
+        "width": 74,
         "height": 47
     },
     "295": {
@@ -2896,8 +2896,8 @@ exports.textures = {
     },
     "579": {
         "format": 512,
-        "width": 2800,
-        "height": 1
+        "width": 78,
+        "height": 35
     },
     "580": {
         "format": 512,
